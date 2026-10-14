@@ -1,0 +1,4 @@
+vst/build/
+third_party/
+dist/
+*.wav

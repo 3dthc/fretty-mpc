@@ -1,0 +1,10 @@
+{
+  "name": "Archtop",
+  "vendor": "3dthc",
+  "uid": "ArTp",
+  "version": 100,
+  "so": "archtop.so",
+  "params": "params.json",
+  "defines": {"MODULE_SUBDIR": "\"engine\"", "HAS_DISPLAY_REV": 1},
+  "build": {"root": "..", "sources": ["src/engine.c"], "cflags": ["-O2", "-ffast-math"], "libs": ["-lm", "-lpthread"]}
+}
