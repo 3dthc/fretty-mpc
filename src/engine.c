@@ -740,7 +740,7 @@ static int fmt_display(inst_t *s, int i, char *buf, int n) {
     case P_CUTOFF: { float hz = 30.0f * powf(2.0f, v * 9.3f); return hz >= 1000 ? snprintf(buf, n, "%.1f kHz", hz / 1000) : snprintf(buf, n, "%d Hz", (int)hz); }
     case P_MIX: {
         int a = (int)lroundf(fminf(1.0f, 2.0f * (1.0f - v)) * 100), bb = (int)lroundf(fminf(1.0f, 2.0f * v) * 100);
-        return snprintf(buf, n, "A %d / B %d", a, bb); }
+        return snprintf(buf, n, "A%d / B%d", a, bb); }                    /* short: fits under the knob at 23 px */
     case P_A_ATTACK: {
         if (v <= 0.005f) return snprintf(buf, n, "OFF");
         float t = 0.005f * powf(400.0f, v);

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # One command from source to an installable MPC zip:
-#   ./make_release.sh [version]        (default 0.7.0)
+#   ./make_release.sh [version]        (default 0.7.1)
 # Builds the plugin (vst/build.sh, Docker), then packages it with mpc-vst-plugins' release tool into
 # dist/Fretty-<version>-mpc-armv7.zip, with the instruments (engine/*.smp) next to the .so.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 MPC_VST="${MPC_VST:-$HERE/../mpc-vst-plugins}"
-VERSION="${1:-0.7.0}"
+VERSION="${1:-0.7.1}"
 B="$HERE/vst/build"
 
 bash "$HERE/vst/build.sh"

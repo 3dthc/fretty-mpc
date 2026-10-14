@@ -37,14 +37,15 @@ TOGGLES = [   # key, x, y, w, h, label
     ("drop", 910, ROW_Y, 104, ROW_H, "DROP D\u266d"),
 ]
 ROW_STEPPERS = [  # key, cx, cy, w, h, text size
-    ("instrument", 152, ROW_Y + ROW_H // 2, 272, ROW_H, 17),
-    ("strum_mode", 785, ROW_Y + ROW_H // 2, 230, ROW_H, 15),
+    ("instrument", 152, ROW_Y + ROW_H // 2, 272, ROW_H, 19),
+    ("strum_mode", 785, ROW_Y + ROW_H // 2, 230, ROW_H, 17),
 ]
 COLW = 141
 PANELS = [("GUITAR", "", 8, 3), ("FX", "", 8 + 3 * COLW + 8, 3), ("LAYERS", "", 8 + 6 * COLW + 16, 1)]
 KP_Y, KP_H = 300, 324
 KNOB_R = 44                                      # the builder's knob box is 2r + 10
-KNOB_ROWS = (404, 544)
+VALUE_PX = 23                                    # MPC's live value text under each knob (Titillium)
+KNOB_ROWS = (401, 546)                           # names sit 54 px above a knob's centre, its value box ends 75 px below
 KNOBS = [  # panel, col, row, key, label
     (0, 0, 0, "blend", "BLEND"), (0, 1, 0, "tone", "TONE"), (0, 2, 0, "damp", "DAMP"),
     (0, 0, 1, "vibrato", "VIBRATO"), (0, 1, 1, "strum_speed", "STRUM SPD"), (0, 2, 1, "noise", "NOISE"),
@@ -56,7 +57,7 @@ KNOBS = [  # panel, col, row, key, label
 DIM = {"blend": list(range(1, 10)),              # only the archtop has a pickup and a mic to blend
        "noise": list(range(2, 10))}              # release / fret noises: the archtop and the electric
 STRIP = (1032, 236, 240, 384)                    # right column: wordmark + theme (MPC's Q-Link sidebar may cover it)
-STEPPERS = [("theme", "THEME", 1152, 486, 224, 52, 17)]   # key, label, cx, cy, w, h, text size
+STEPPERS = [("theme", "THEME", 1152, 486, 224, 52, 19)]   # key, label, cx, cy, w, h, text size
 NECK = dict(x0=132, x1=1272, yc=106, hn=70, he=84)
 METER_X0 = 36                                    # string pictures span the headstock badges to the right edge
 LOAD_BOX = (552, 76, 300, 60)                    # x, y, w, h: "loading" over the neck while an instrument loads
@@ -127,8 +128,11 @@ function setup(w, h) { cv.width = w; cv.height = h; ctx = cv.getContext('2d'); c
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function rrect(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
 function text(s, x, y, size, color, o = {}) {
-  ctx.font = `${o.style || ''} ${o.weight || 600} ${size}px ${o.font || SANS}`; ctx.fillStyle = color;
-  ctx.textAlign = o.align || 'left'; ctx.textBaseline = o.base || 'alphabetic'; ctx.letterSpacing = (o.ls || 0) + 'px';
+  // o.maxw: the text never gets wider than that; it steps down in size until it fits (no squashing, no overflow)
+  const font = sz => `${o.style || ''} ${o.weight || 600} ${sz}px ${o.font || SANS}`;
+  ctx.letterSpacing = (o.ls || 0) + 'px'; ctx.font = font(size);
+  if (o.maxw) while (size > 8 && ctx.measureText(s).width > o.maxw) { size -= 0.5; ctx.font = font(size); }
+  ctx.fillStyle = color; ctx.textAlign = o.align || 'left'; ctx.textBaseline = o.base || 'alphabetic';
   ctx.fillText(s, x, y); ctx.letterSpacing = '0px';
 }
 function panel(t, x, y, w, h, r = 14) {
@@ -177,7 +181,7 @@ function drawString(i, x0, color, alpha) {
 function badge(x, y, label, lit, accent, accentText) {
   ctx.beginPath(); ctx.arc(x, y, 10.5, 0, 6.283); ctx.fillStyle = lit ? accent : 'rgba(0,0,0,0.45)'; ctx.fill();
   ctx.strokeStyle = lit ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1; ctx.stroke();
-  text(label, x, y + 1, 13, lit ? accentText : '#efe6d6', { align: 'center', base: 'middle', weight: 700 });
+  text(label, x, y + 1, 14, lit ? accentText : '#efe6d6', { align: 'center', base: 'middle', weight: 800, maxw: 18 });
 }
 function chromeWordmark(word, cx, cy, size) {
   // drawn on its own layer so the shine stays inside the letters
@@ -235,27 +239,27 @@ function background(name) {
   const ng = ctx.createLinearGradient(x0 - 10, 0, x0, 0); ng.addColorStop(0, '#bfb69f'); ng.addColorStop(0.5, '#ece5d2'); ng.addColorStop(1, '#cfc6b0');
   ctx.fillStyle = ng; ctx.fillRect(x0 - 10, yc - hn - 2, 11, hn * 2 + 4);
   for (let i = 0; i < 6; i++) drawString(i, x0, '#ecebe6', 1);
-  [1, 3, 5, 7, 9, 12, 15].forEach(n => text(String(n), (fretX(n - 1) + fretX(n)) / 2, P.y + P.h - 7, 13, t.dim, { align: 'center', weight: 600 }));
+  [1, 3, 5, 7, 9, 12, 15].forEach(n => text(String(n), (fretX(n - 1) + fretX(n)) / 2, P.y + P.h - 6, 15, t.dim, { align: 'center', weight: 700 }));
   ctx.restore();
   for (let i = 0; i < 6; i++) badge(58, stringY(i, x0), NOTE[TUNING[i] % 12], false);
   screw(t, P.x + 14, P.y + 14); screw(t, P.x + 14, P.y + P.h - 14);
   // knob panels (dark in every theme, so MPC's live text reads the same)
   for (const [title, sub, x, cols] of PANELS_JSON) {
     const w = cols * COLW; panel(t, x, KP_Y, w, KP_H);
-    text(title, x + 20, KP_Y + 24, 13, t.title, { weight: 800, ls: 3 });
+    text(title, x + 20, KP_Y + 22, 14, t.title, { weight: 800, ls: 2.6, maxw: w - 40 });
     if (sub) text(sub, x + w - 20, KP_Y + 24, 11, '#8e8e8e', { weight: 600, ls: 1.6, align: 'right' });
   }
-  for (const [x, y, label] of KNOB_LABELS_JSON) text(label, x, y - 56, 14, '#efe9d8', { align: 'center', weight: 700, ls: 1.6 });
+  for (const [x, y, label] of KNOB_LABELS_JSON) text(label, x, y - 54, 16, '#efe9d8', { align: 'center', weight: 800, ls: 1.4, maxw: 118 });
   // the row under the neck: the instrument and strum steppers (their arrows are cropped from this picture)
   for (const [key, cx, cy, w, h] of ROW_STEP_DATA) arrowPlates(w, h, cx - w / 2, cy - h / 2);
   // right column: wordmark + theme
   const [sx, sy, sw, sh] = STRIP_JSON; panel(t, sx, sy, sw, sh);
   wordPlate(sx + 14, sy + 14, sw - 28, 104, 60);
   for (const [key, label, cx, cy, w, h] of STEPPERS_JSON) {
-    text(label, cx, cy - h / 2 - 22, 12, t.chassisText, { weight: 700, ls: 3, align: 'center' });
+    text(label, cx, cy - h / 2 - 22, 14, t.chassisText, { weight: 800, ls: 2.8, align: 'center' });
     arrowPlates(w, h, cx - w / 2, cy - h / 2);
   }
-  text('V' + VERSION_TXT + '  \u00b7  3DTHC', sx + sw / 2, sy + sh - 18, 10, t.chassisText, { weight: 600, ls: 2.4, align: 'center' });
+  text('V' + VERSION_TXT + '  \u00b7  3DTHC', sx + sw / 2, sy + sh - 18, 11, t.chassisText, { weight: 700, ls: 2.2, align: 'center' });
   return cv.toDataURL('image/png');
 }
 function wordPlate(x, y, w, h, size) {
@@ -270,7 +274,7 @@ function layerBackground(name, which) {
   const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, t.bg1); g.addColorStop(1, t.bg2); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   noise(t, W, H);
   const titles = LAYER_TITLES[which];
-  LAYER_GRID.forEach(([x, y, w, h], i) => { panel(t, x, y, w, h); text(titles[i], x + 20, y + 24, 13, t.title, { weight: 800, ls: 3 }); });
+  LAYER_GRID.forEach(([x, y, w, h], i) => { panel(t, x, y, w, h); text(titles[i], x + 20, y + 25, 15, t.title, { weight: 800, ls: 2.6, maxw: w - 40 }); });
   // the picture's bezel (waveform or instrument) and the stepper under it
   { const [x, y, w, h] = WAVE_BOX_JSON; rrect(x - 6, y - 6, w + 12, h + 12, 12); ctx.fillStyle = '#0a0a0a'; ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1; ctx.stroke(); }
@@ -280,10 +284,10 @@ function layerBackground(name, which) {
   // right column: wordmark, the layer switches, the mix
   const [sx, sy, sw, sh] = SYNTH_COLUMN_DATA; panel(t, sx, sy, sw, sh);
   wordPlate(sx + 14, sy + 14, sw - 28, 104, 60);
-  text('LAYERS', sx + sw / 2, sy + 156, 12, t.chassisText, { weight: 700, ls: 3, align: 'center' });
-  text('TAP TO SOLO OR LAYER', sx + sw / 2, sy + 330, 10, t.chassisText, { weight: 600, ls: 1.6, align: 'center' });
+  text('LAYERS', sx + sw / 2, sy + 156, 14, t.chassisText, { weight: 800, ls: 2.8, align: 'center' });
+  text('TAP TO SOLO OR LAYER', sx + sw / 2, sy + 332, 11.5, t.chassisText, { weight: 700, ls: 1.4, align: 'center', maxw: sw - 24 });
   for (const [key, label, cx, cy] of LAYER_KNOB_DATA[which].concat([MIX_KNOB_JSON]))
-    text(label, cx, cy - 56, 14, '#efe9d8', { align: 'center', weight: 700, ls: 1.6 });
+    text(label, cx, cy - 54, 16, '#efe9d8', { align: 'center', weight: 800, ls: 1.4, maxw: 118 });
   return cv.toDataURL('image/png');
 }
 function stringIcon(x, y, w, h, color) {     // a plucked string ringing down
@@ -307,7 +311,7 @@ function instPicture(i, w, h) {
   const [sub, strings, bow] = INST_INFO_JSON[i], name = INST_NAMES_JSON[i].toUpperCase();
   ctx.save(); ctx.shadowColor = 'rgba(255,236,200,0.8)'; ctx.shadowBlur = 10;
   text(name, 16, 38, name.length > 10 ? 22 : 26, '#f6eedd', { weight: 800, ls: 1.5 }); ctx.restore();
-  text(sub, 16, 58, 10.5, '#9a958b', { weight: 700, ls: 1.4 });
+  text(sub, 16, 59, 12, '#a39e93', { weight: 700, ls: 1.2, maxw: w - 32 });
   ctx.save(); ctx.strokeStyle = '#f6eedd'; ctx.shadowColor = 'rgba(255,236,200,0.9)'; ctx.shadowBlur = 6; ctx.globalAlpha = 0.9;
   if (strings === 'z') {           // zither: many fine strings, each on its own movable bridge
     for (let k = 0; k < 14; k++) { const y = 74 + k * 3.9; ctx.lineWidth = 0.7 + k * 0.05;
@@ -341,7 +345,7 @@ function loadStrip(w, h) {
     const x = f * w; ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 14;
     rrect(x + 10, 8, w - 20, h - 16, (h - 16) / 2); ctx.fillStyle = 'rgba(12,12,12,0.92)'; ctx.fill(); ctx.restore();
     rrect(x + 10.5, 8.5, w - 21, h - 17, (h - 16) / 2); ctx.strokeStyle = col; ctx.globalAlpha = 0.6; ctx.lineWidth = 1.5; ctx.stroke(); ctx.globalAlpha = 1;
-    text(label, x + w / 2, h / 2 + 1, 17, col, { align: 'center', base: 'middle', weight: 800, ls: 2.4 });
+    text(label, x + w / 2, h / 2 + 1, 19, col, { align: 'center', base: 'middle', weight: 800, ls: 2.2, maxw: w - 56 });
   });
   return cv.toDataURL('image/png');
 }
@@ -380,7 +384,7 @@ function wavePicture(kind, w, h) {
 }
 
 // ---------- switches: off / on pictures, per theme ----------
-function button(t, x, y, w, h, label, on) {
+function button(t, x, y, w, h, label, on, size = 17) {
   ctx.save(); ctx.shadowColor = on ? t.accent : 'rgba(0,0,0,0.45)'; ctx.shadowBlur = on ? 10 : 6; ctx.shadowOffsetY = on ? 0 : 2;
   const g = ctx.createLinearGradient(0, y, 0, y + h);
   if (on) { g.addColorStop(0, t.accent); g.addColorStop(1, t.accent); } else { g.addColorStop(0, t.btn1); g.addColorStop(1, t.btn2); }
@@ -388,13 +392,13 @@ function button(t, x, y, w, h, label, on) {
   if (on) { ctx.save(); rrect(x, y, w, h, 10); ctx.clip(); const s = ctx.createLinearGradient(0, y, 0, y + h);
     s.addColorStop(0, 'rgba(255,255,255,0.28)'); s.addColorStop(0.5, 'rgba(255,255,255,0)'); s.addColorStop(1, 'rgba(0,0,0,0.12)'); ctx.fillStyle = s; ctx.fillRect(x, y, w, h); ctx.restore(); }
   rrect(x + 0.5, y + 0.5, w - 1, h - 1, 10); ctx.strokeStyle = on ? 'rgba(255,255,255,0.25)' : t.btnEdge; ctx.lineWidth = 1; ctx.stroke();
-  text(label, x + w / 2, y + h / 2 + 1, 15, on ? t.accentText : t.btnText, { align: 'center', base: 'middle', weight: 700, ls: 1.2 });
+  text(label, x + w / 2, y + h / 2 + 1, size, on ? t.accentText : t.btnText, { align: 'center', base: 'middle', weight: 800, ls: 1.1, maxw: w - 16 });
 }
 function toggleImage(name, w, h, label, on) {
   const t = T[name], pad = 8; setup(w + 2 * pad, h + 2 * pad);
   if (label === null) {      // articulation: two halves, the lit one is the current option
     const half = (w - 14) / 2;
-    button(t, pad, pad, half, h, 'SUSTAIN', !on); button(t, pad + half + 14, pad, half, h, 'PALM MUTE', on);
+    button(t, pad, pad, half, h, 'SUSTAIN', !on, 15); button(t, pad + half + 14, pad, half, h, 'PALM MUTE', on, 15);   // one size for both halves
   } else button(t, pad, pad, w, h, label, on);
   return cv.toDataURL('image/png');
 }
@@ -459,7 +463,7 @@ function fretStrip(i) {
       ctx.save(); ctx.shadowColor = 'rgba(255,240,210,0.95)'; ctx.shadowBlur = 12;
       ctx.beginPath(); ctx.arc(x, y, 11.5, 0, 6.283); ctx.fillStyle = '#141414'; ctx.fill(); ctx.restore();
       ctx.beginPath(); ctx.arc(x, y, 11.5, 0, 6.283); ctx.strokeStyle = '#f3ecdc'; ctx.lineWidth = 2; ctx.stroke();
-      text(NOTE[(TUNING[i] + fret) % 12], x, y + 1, 11, '#f3ecdc', { align: 'center', base: 'middle', weight: 800 });
+      text(NOTE[(TUNING[i] + fret) % 12], x, y + 1, 12, '#f3ecdc', { align: 'center', base: 'middle', weight: 800, maxw: 19 });
     }
     ctx.restore();
   }
@@ -568,8 +572,8 @@ def write_layout(boxes):
     L.append("qlinks_track = " + ",".join(play_keys))
 
     def knob(cx, cy, key, label, bw=136, strip="knob", when=""):
-        L.append('knob cx=%d cy=%d r=%d label="%s" key=%s ns=0 vs=21 bw=%d strip=art/%s.png frames=128%s' % (
-            cx, cy + Y_OFF, KNOB_R, label, key, bw, strip, (" when=" + when) if when else ""))
+        L.append('knob cx=%d cy=%d r=%d label="%s" key=%s ns=0 vs=%d bw=%d strip=art/%s.png frames=128%s' % (
+            cx, cy + Y_OFF, KNOB_R, label, key, VALUE_PX, bw, strip, (" when=" + when) if when else ""))
 
     def dimmable(cx, cy, key, label, bw=136):
         """One line per instrument where the knob is dimmed, one per instrument where it is live (one condition a line)."""
@@ -619,11 +623,11 @@ def write_layout(boxes):
         if which == "A":
             files = ",".join("art/inst_%d.png" % k for k in range(len(INSTRUMENTS)))
             L.append('picture x=%d y=%d w=%d h=%d key=instrument files="%s"' % (x, y + Y_OFF, w, h, files))
-            stepper("instrument", PIC_STEP[0], PIC_STEP[1], PIC_STEP[2], PIC_STEP[3], 17)
+            stepper("instrument", PIC_STEP[0], PIC_STEP[1], PIC_STEP[2], PIC_STEP[3], 19)
         else:
             L.append('picture x=%d y=%d w=%d h=%d key=wave files="art/wave_sine.png,art/wave_triangle.png,art/wave_saw.png,art/wave_square.png"' % (
                 x, y + Y_OFF, w, h))
-            stepper("wave", PIC_STEP[0], PIC_STEP[1], PIC_STEP[2], PIC_STEP[3], 17)
+            stepper("wave", PIC_STEP[0], PIC_STEP[1], PIC_STEP[2], PIC_STEP[3], 19)
         toggles(S_TOGGLES)
         for key, label, cx, cy, bw in L_KNOBS[which]:
             dimmable(cx, cy, key, label, bw)

@@ -2,7 +2,7 @@
 
 A guitar instrument for Akai MPC OS standalone devices (native VST2, built with
 [mpc-vst-plugins](https://github.com/sd88me/mpc-vst-plugins)), with a synth layer as a twist.
-Status: **v0.7.0, testing on a device.**
+Status: **v0.7.1, testing on a device.**
 
 At its core it plays real, clean, raw recordings on a six-string playing model; drive, chorus, the pluck layer and
 the synth turn that into many more sounds without a sample library.
