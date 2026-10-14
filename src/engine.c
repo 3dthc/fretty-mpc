@@ -410,6 +410,7 @@ static void start_note(inst_t *s, int key, int vel, int str, int fret, int delay
     voice_t *v = alloc_voice(s);
     float span = (float)(z->hv - z->lv);
     float g = 0.6f + 0.4f * (span > 0 ? (vel - z->lv) / span : 1.0f);
+    if (vel < 40) g *= 0.25f + 0.75f * vel / 40.0f;      /* soft playing gets properly soft, not just the soft layer */
     voice_common(s, v, VK_NOTE, str, key, pick_rr(s, b, z), (float)(key - z->root), g);
     v->held = 1;
     v->delay = delay;
