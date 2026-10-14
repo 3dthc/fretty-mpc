@@ -1,6 +1,6 @@
-/* Archtop: a sampled archtop guitar for MPC OS (mpc_engine, see mpc-vst-plugins wrapper/engine.h).
+/* Fretty: a sampled archtop guitar for MPC OS (mpc_engine, see mpc-vst-plugins wrapper/engine.h).
  *
- * Sound: Karoryfer's Shinyguitar (CC0), packed by tools/pack_samples.py into engine/archtop.smp:
+ * Sound: Karoryfer's Shinyguitar (CC0), packed by tools/pack_samples.py into engine/fretty.smp:
  * each take is a stereo frame pair, L = magnetic pickup, R = microphone, so BLEND mixes them per sample.
  *
  * Memory: the essential sample set is stored losslessly compressed (~20 MB on disk) and decoded into RAM
@@ -178,7 +178,7 @@ static void bank_acquire(const char *data_dir) {
     if (g_bank.refs++ == 0) {
         memset(&g_bank, 0, sizeof g_bank);
         g_bank.refs = 1;
-        snprintf(g_bank.path, sizeof g_bank.path, "%s/archtop.smp", data_dir ? data_dir : ".");
+        snprintf(g_bank.path, sizeof g_bank.path, "%s/fretty.smp", data_dir ? data_dir : ".");
         g_bank.state = BANK_LOADING;
         g_bank.have_loader = !pthread_create(&g_bank.loader, NULL, loader_main, NULL);
         if (!g_bank.have_loader) g_bank.state = BANK_FAILED;
@@ -241,6 +241,7 @@ typedef struct {
     int palm;
     /* plucked-string layer */
     float *ks; int ks_on, ks_w; float ks_prev, ks_gain, ks_level, ks_hz;
+    float meter;           /* recent output peak, for the string picture */
 } voice_t;
 
 typedef struct { uint8_t st, d1, d2; } ev_t;
@@ -261,6 +262,7 @@ typedef struct {
     float *rv; int rv_comb[8], rv_len_c[8], rv_ap[4], rv_len_a[4]; float rv_store[8];
     float rv_buf_total;
     char chord[32];
+    uint8_t disp_vib[NSTR], disp_fret[NSTR];   /* what the page's string pictures show (s<n>_vib / s<n>_fret) */
     int rev, last_state;
 } inst_t;
 
@@ -621,6 +623,11 @@ static int eng_get_param(void *inst, const char *key, char *buf, int n) {
     if (!strcmp(key, "status"))
         return snprintf(buf, n, "%s", st == BANK_READY ? "READY" : st == BANK_FAILED ? "SAMPLES MISSING" : "LOADING...");
     if (!strcmp(key, "chord")) return snprintf(buf, n, "%s", s->chord);
+    if (key[0] == 's' && key[1] >= '1' && key[1] <= '6' && key[2] == '_') {
+        int st = key[1] - '1';
+        if (!strcmp(key + 3, "vib")) return snprintf(buf, n, "%d", s->disp_vib[st]);
+        if (!strcmp(key + 3, "fret")) return snprintf(buf, n, "%d", s->disp_fret[st]);
+    }
     int i = find_key(key);
     if (i >= 0) return snprintf(buf, n, "%g", s->p[i]);
     size_t kl = strlen(key);
@@ -724,7 +731,7 @@ static void eng_render(void *inst, int16_t *out, int frames) {
         float vfb = ks_fb * (v->releasing ? 0.995f : 1.0f);
         if (v->palm) vfb *= 0.985f;
         float ks_amp = eng_mix * 1.0f * v->ks_gain;
-        float ks_peak = 0;
+        float ks_peak = 0, out_peak = 0;
         int start = 0;
         if (v->delay > 0) {
             start = v->delay < frames ? v->delay : frames;
@@ -769,10 +776,13 @@ static void eng_render(void *inst, int16_t *out, int frames) {
                 float ab = ko < 0 ? -ko : ko;
                 if (ab > ks_peak) ks_peak = ab;
             }
+            float ax = x < 0 ? -x : x;
+            if (ax > out_peak) out_peak = ax;
             mixL[i] += x * v->pl;
             mixR[i] += x * v->pr;
         }
         v->t += (frames - start) / SR;
+        v->meter = out_peak > v->meter * 0.97f ? out_peak : v->meter * 0.97f;
         if (use_ks) { v->ks_level = ks_peak; if (ks_peak < 1e-4f && v->t > 0.2f) v->ks_on = 0; }
         /* a voice ends when both its sample and its pluck layer are spent */
         if (v->delay == 0 && v->att >= 1) {
@@ -784,6 +794,18 @@ static void eng_render(void *inst, int16_t *out, int frames) {
             }
         }
     }
+    /* string pictures: how hard each string rings (0-3) and which fret is lit (0 none, 1 open, 2.. fret 1..) */
+    for (int st = 0; st < NSTR; st++) {
+        int vi = s->str_voice[st], vib = 0, fret = 0;
+        if (vi >= 0 && s->v[vi].on && s->v[vi].kind == VK_NOTE && s->v[vi].delay == 0) {
+            const voice_t *v = &s->v[vi];
+            float lvl = v->meter;
+            vib = lvl > 0.10f ? 3 : lvl > 0.03f ? 2 : lvl > 0.006f ? 1 : 0;
+            if (vib) { fret = s->str_fret[st] + 1; if (fret < 1) fret = 1; if (fret > 16) fret = 16; }
+        }
+        if (vib != s->disp_vib[st] || fret != s->disp_fret[st]) { s->disp_vib[st] = (uint8_t)vib; s->disp_fret[st] = (uint8_t)fret; s->rev++; }
+    }
+
     float space = s->p[P_SPACE];
     float vol = s->p[P_VOLUME] / 0.9f;
     float dry = (1.0f - 0.35f * space) * vol, wet = space * vol * 0.9f;
@@ -807,4 +829,4 @@ static const mpc_engine_t ENGINE = { eng_create, eng_destroy, eng_midi, eng_set_
 const mpc_engine_t *mpc_engine(void) { return &ENGINE; }
 
 /* For the offline demo renderer (tools/render_demo.c): wait until the bank is ready. */
-int archtop_bank_state(void) { return bank_state(); }
+int fretty_bank_state(void) { return bank_state(); }

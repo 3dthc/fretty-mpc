@@ -1,8 +1,9 @@
-# Archtop (working name)
+# Fretty
 
 A sampled archtop guitar instrument for Akai MPC OS standalone devices (native VST2, built with
 [mpc-vst-plugins](https://github.com/sd88me/mpc-vst-plugins)). Status: **engine v0.1, not yet tested on a device.**
-The touchscreen page is still a placeholder (auto-layout) until the UI design is signed off.
+The touchscreen page: a horizontal fretboard whose strings light up and ring as you play, 14 knobs, the playing
+switches, and three themes (MPC Black, Sunburst, MPC Grey).
 
 ## How it plays
 - **Six strings.** Every note is placed on a string and fret. A chord that arrives together is spread across strings
@@ -42,18 +43,24 @@ Next to a checkout of `mpc-vst-plugins`, from Ubuntu (WSL) with Docker and `pyth
 vst/build.sh
 ```
 
-The samples ship ready in `engine/archtop.smp`; the plugin needs that `engine/` folder next to `archtop.so` in its
+The samples ship ready in `engine/fretty.smp`; the plugin needs that `engine/` folder next to `fretty.so` in its
 plugin folder (`make_release.sh` puts it there).
 
-**The essential sample set:** from Shinyguitar's 4 velocity layers x 4 takes, Archtop keeps 3 layers (soft, medium,
+**The essential sample set:** from Shinyguitar's 4 velocity layers x 4 takes, Fretty keeps 3 layers (soft, medium,
 hard) and the 2 most typical takes of each, notes up to 4 s with a natural fade, and 2 takes of every release and noise.
 It is stored losslessly compressed (~20 MB) and decoded into RAM when the plugin loads (~72 MB, shared by all
 instances). `tools/pack_samples.py` rebuilds it from the source (`--full` keeps everything; much larger).
 `tools/check_codec.c` checks the decode is bit-exact.
 
+## The page
+`tools/make_skin.py` draws all the artwork (backgrounds per theme, the chrome wordmark, the knob, the switches and
+the string pictures) and writes `vst/layout.conf`; its output in `vst/art/` is committed, so the build only reads it.
+Each string has two display filmstrips driven by the engine (`s<n>_vib`: ring level 0-3, `s<n>_fret`: the lit
+fret). MPC only swaps those pictures when a value changes (a few times per note), never animates continuously.
+
 ## Offline checks
 - `../mpc-vst-plugins/tools/test_port.sh vst/vst.json` (ASan/UBSan host test)
-- `tools/render_demo.c`: plays a demo through the engine and writes a WAV (`render_demo <dir with archtop.smp> out.wav`).
+- `tools/render_demo.c`: plays a demo through the engine and writes a WAV (`render_demo <dir with fretty.smp> out.wav`).
 
 ## Credits
 Samples: Shinyguitar by Karoryfer Lecolds, CC0. See [CREDITS.md](CREDITS.md).

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pack Karoryfer's Shinyguitar (CC0) into the single sample file the Archtop engine loads.
+"""Pack Karoryfer's Shinyguitar (CC0) into the single sample file the Fretty engine loads.
 
     python3 -I tools/pack_samples.py <karoryfer.shinyguitar checkout> <out dir> [--full]
 
@@ -15,7 +15,7 @@ microphone (acoustic/*_1.wav). They are stored as one interleaved int16 frame pa
 R = mic) so the BLEND knob can mix them sample-accurately. Tails are trimmed where both channels
 stay under the threshold, then faded; 24-bit input is dithered to 16-bit.
 
-Output: <out dir>/archtop.smp (format in src/smp_format.h) and CREDITS-samples.txt.
+Output: <out dir>/fretty.smp (format in src/smp_format.h) and CREDITS-samples.txt.
 Only the WAVs and the SFZ key/velocity mapping are used: not the GUI art or the signed bank XML."""
 import os
 import re
@@ -259,11 +259,11 @@ for (t, lo, hi, root, lv, hv), idxs in zone_list:
     zt += struct.pack("<%dH" % MAX_RR, *(idxs + [0] * (MAX_RR - len(idxs))))
 data_off = 20 + len(table) + len(zt)
 hdr = struct.pack("<4sIIII", b"ATSP", 2, len(samples), len(zone_list), data_off)
-if os.environ.get("ARCHTOP_DUMP_RAW"):           # for the lossless check (tools/check_codec.c)
-    with open(os.environ["ARCHTOP_DUMP_RAW"], "wb") as f:
+if os.environ.get("FRETTY_DUMP_RAW"):           # for the lossless check (tools/check_codec.c)
+    with open(os.environ["FRETTY_DUMP_RAW"], "wb") as f:
         for _, data, _ in samples:
             f.write(data)
-path = os.path.join(OUT, "archtop.smp")
+path = os.path.join(OUT, "fretty.smp")
 with open(path, "wb") as f:
     f.write(hdr)
     f.write(table)
@@ -278,4 +278,4 @@ with open(os.path.join(OUT, "CREDITS-samples.txt"), "w") as f:
     f.write("Samples: Shinyguitar by Karoryfer Lecolds (D. Smolken), archtop guitar.\n"
             "Source: https://github.com/sfzinstruments/karoryfer.shinyguitar\n"
             "License: CC0 1.0 Universal (public domain dedication).\n"
-            "Repacked for Archtop: pickup + mic channels paired, tails trimmed, 16-bit.\n")
+            "Repacked for Fretty: pickup + mic channels paired, tails trimmed, 16-bit.\n")

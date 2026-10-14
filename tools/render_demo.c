@@ -1,7 +1,7 @@
-/* Offline demo: drives the Archtop engine like MPC would (128-frame blocks, MIDI before each block) and writes
+/* Offline demo: drives the Fretty engine like MPC would (128-frame blocks, MIDI before each block) and writes
  * a WAV, so the sound can be checked on a PC before it goes near a device.
  *   cc -O2 -Iwrapper-dir tools/render_demo.c src/engine.c -lm -lpthread -o render_demo
- *   ./render_demo <dir with archtop.smp> out.wav */
+ *   ./render_demo <dir with fretty.smp> out.wav */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include "engine.h"
 
-int archtop_bank_state(void);
+int fretty_bank_state(void);
 
 typedef struct { double t; uint8_t a, b, c; const char *pk, *pv; } ev_t;
 static ev_t evs[4096];
@@ -28,8 +28,8 @@ int main(int argc, char **argv) {
     if (argc < 3) { fprintf(stderr, "usage: %s <data dir> out.wav\n", argv[0]); return 2; }
     const mpc_engine_t *E = mpc_engine();
     void *s = E->create(argv[1]);
-    for (int i = 0; i < 3000 && archtop_bank_state() == 1; i++) usleep(10000);
-    if (archtop_bank_state() != 2) { fprintf(stderr, "bank not ready (%d)\n", archtop_bank_state()); return 1; }
+    for (int i = 0; i < 3000 && fretty_bank_state() == 1; i++) usleep(10000);
+    if (fretty_bank_state() != 2) { fprintf(stderr, "bank not ready (%d)\n", fretty_bank_state()); return 1; }
 
     const int C[] = { 48, 52, 55, 60, 64 }, Am[] = { 45, 52, 57, 60, 64 }, F[] = { 41, 48, 53, 57, 60, 65 },
               G[] = { 43, 47, 50, 55, 59, 67 };

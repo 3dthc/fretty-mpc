@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 # One command from source to an installable MPC zip:
-#   ./make_release.sh [version]        (default 0.1.0)
+#   ./make_release.sh [version]        (default 0.2.0)
 # Builds the plugin (vst/build.sh, Docker), then packages it with mpc-vst-plugins' release tool into
-# dist/Archtop-<version>-mpc-armv7.zip, with the samples (engine/archtop.smp) next to the .so.
+# dist/Fretty-<version>-mpc-armv7.zip, with the samples (engine/fretty.smp) next to the .so.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 MPC_VST="${MPC_VST:-$HERE/../mpc-vst-plugins}"
-VERSION="${1:-0.1.0}"
+VERSION="${1:-0.2.0}"
 B="$HERE/vst/build"
 
 bash "$HERE/vst/build.sh"
 
-[ -f "$B/archtop.so" ] || { echo "build failed: no $B/archtop.so" >&2; exit 1; }
-[ -f "$HERE/engine/archtop.smp" ] || { echo "missing $HERE/engine/archtop.smp" >&2; exit 1; }
+[ -f "$B/fretty.so" ] || { echo "build failed: no $B/fretty.so" >&2; exit 1; }
+[ -f "$HERE/engine/fretty.smp" ] || { echo "missing $HERE/engine/fretty.smp" >&2; exit 1; }
 
 python3 "$MPC_VST/tools/release.py" \
-  --so "$B/archtop.so" \
-  --skin "$B/skin/3dthc - VST - Archtop" \
+  --so "$B/fretty.so" \
+  --skin "$B/skin/3dthc - VST - Fretty" \
   --entry "$B/pluginlist-entry.xml" \
   --version "$VERSION" \
   --extra "$HERE/engine:engine" \

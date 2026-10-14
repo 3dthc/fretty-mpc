@@ -1,4 +1,4 @@
 Samples: Shinyguitar by Karoryfer Lecolds (D. Smolken), archtop guitar.
 Source: https://github.com/sfzinstruments/karoryfer.shinyguitar
 License: CC0 1.0 Universal (public domain dedication).
-Repacked for Archtop: pickup + mic channels paired, tails trimmed, 16-bit.
+Repacked for Fretty: pickup + mic channels paired, tails trimmed, 16-bit.

@@ -1,5 +1,5 @@
-/* Lossless check: decode archtop.smp with the engine's own loader and compare with the raw 16-bit audio the packer
- * dumped (ARCHTOP_DUMP_RAW=raw.bin python3 tools/pack_samples.py ...).
+/* Lossless check: decode fretty.smp with the engine's own loader and compare with the raw 16-bit audio the packer
+ * dumped (FRETTY_DUMP_RAW=raw.bin python3 tools/pack_samples.py ...).
  *   cc -O2 -I<mpc-vst-plugins>/wrapper tools/check_codec.c -lm -lpthread -o check_codec && ./check_codec <dir> raw.bin */
 #include "../src/engine.c"
 int main(int argc, char **argv) {
