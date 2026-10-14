@@ -57,7 +57,7 @@ KNOBS = [  # panel, col, row, key, label
 DIM = {"blend": list(range(1, 10)),              # only the archtop has a pickup and a mic to blend
        "noise": list(range(2, 10))}              # release / fret noises: the archtop and the electric
 STRIP = (1032, 236, 240, 384)                    # right column: wordmark + theme (MPC's Q-Link sidebar may cover it)
-STEPPERS = [("theme", "THEME", 1152, 486, 224, 52, 19)]   # key, label, cx, cy, w, h, text size
+STEPPERS = [("theme", "THEME", 1152, 580, 224, 52, 19)]   # key, label, cx, cy, w, h, text size: the column's foot
 NECK = dict(x0=132, x1=1272, yc=106, hn=70, he=84)
 METER_X0 = 36                                    # string pictures span the headstock badges to the right edge
 LOAD_BOX = (552, 76, 300, 60)                    # x, y, w, h: "loading" over the neck while an instrument loads
@@ -252,20 +252,28 @@ function background(name) {
   for (const [x, y, label] of KNOB_LABELS_JSON) text(label, x, y - 54, 16, '#efe9d8', { align: 'center', weight: 800, ls: 1.4, maxw: 118 });
   // the row under the neck: the instrument and strum steppers (their arrows are cropped from this picture)
   for (const [key, cx, cy, w, h] of ROW_STEP_DATA) arrowPlates(w, h, cx - w / 2, cy - h / 2);
-  // right column: wordmark + theme
+  // right column: the wordmark fills it, the theme stepper sits at its foot
   const [sx, sy, sw, sh] = STRIP_JSON; panel(t, sx, sy, sw, sh);
-  wordPlate(sx + 14, sy + 14, sw - 28, 104, 60);
+  const [, , , scy, , sth] = STEPPERS_JSON[0];
+  const capY = scy - sth / 2 - 18;                       // the THEME caption, just over the stepper
+  wordPlate(sx + 14, sy + 14, sw - 28, capY - 20 - (sy + 14), 92);
   for (const [key, label, cx, cy, w, h] of STEPPERS_JSON) {
-    text(label, cx, cy - h / 2 - 22, 14, t.chassisText, { weight: 800, ls: 2.8, align: 'center' });
+    text(label, cx, capY, 14, t.chassisText, { weight: 800, ls: 2.8, align: 'center' });
     arrowPlates(w, h, cx - w / 2, cy - h / 2);
   }
-  text('V' + VERSION_TXT + '  \u00b7  3DTHC', sx + sw / 2, sy + sh - 18, 11, t.chassisText, { weight: 700, ls: 2.2, align: 'center' });
   return cv.toDataURL('image/png');
 }
 function wordPlate(x, y, w, h, size) {
   const dark = { panel1: '#151515', panel2: '#0c0c0c', edge: 'rgba(255,255,255,0.10)', hi: 'rgba(255,255,255,0.06)' };
   panel(dark, x, y, w, h, 12);
-  chromeWordmark('Fretty', x + w / 2, y + h * 0.66, size);
+  // as big as the plate allows (a margin all round), centred on the letters' own height
+  ctx.font = `${size}px Script`;
+  let m = ctx.measureText('Fretty');
+  while (size > 30 && (m.width > w - 40 || m.actualBoundingBoxAscent + m.actualBoundingBoxDescent > h - 36)) {
+    size -= 1; ctx.font = `${size}px Script`; m = ctx.measureText('Fretty');
+  }
+  const cy = y + h / 2 + (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2;
+  chromeWordmark('Fretty', x + w / 2, cy, size);
 }
 
 // ---------- the LAYER A / LAYER B page backgrounds (one per theme) ----------
@@ -507,7 +515,6 @@ def main():
         "NECK_JSON": json.dumps(NECK), "PANELS_JSON": json.dumps(PANELS), "STRIP_JSON": json.dumps(STRIP),
         "COLW_JSON": str(COLW), "KP_Y_JSON": str(KP_Y), "KP_H_JSON": str(KP_H), "METER_X0_JSON": str(METER_X0),
         "STEPPERS_JSON": json.dumps(STEPPERS), "ROW_STEP_DATA": json.dumps(ROW_STEPPERS),
-        "VERSION_TXT": json.dumps("%d.%d" % (version // 1000, version // 100 % 10)),   # 400 = 0.4.0
         "LAYER_GRID": json.dumps(L_GRID), "LAYER_TITLES": json.dumps(L_TITLES), "LAYER_KNOB_DATA": json.dumps(L_KNOBS),
         "MIX_KNOB_JSON": json.dumps(MIX_KNOB), "SYNTH_COLUMN_DATA": json.dumps(S_STRIP), "WAVE_BOX_JSON": json.dumps(WAVE_BOX),
         "PIC_STEP_JSON": json.dumps(PIC_STEP), "INST_INFO_JSON": json.dumps(INST_INFO),

@@ -2,7 +2,7 @@
   "name": "Fretty",
   "vendor": "3dthc",
   "uid": "FrTy",
-  "version": 710,
+  "version": 720,
   "so": "fretty.so",
   "params": "params.json",
   "defines": {

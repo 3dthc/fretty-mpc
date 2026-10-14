@@ -1,27 +1,27 @@
-# Device test (v0.7.1)
+# Device test (v0.7.2)
 
-Goal: confirm Fretty v0.7.1 builds, loads with its three pages, plays every instrument (now with the zithers), and stays light on the CPU.
+Goal: confirm Fretty v0.7.2 builds, loads with its three pages, plays every instrument (now with the zithers), and stays light on the CPU.
 
 **If you installed the earlier test build (Archtop):** remove it first (`uninstall.sh` from its zip, or the installer
 app), since Fretty is a new plugin with its own folder.
 
 ## 1. Install (Ubuntu in WSL)
-Download all three zips to your Windows **Downloads** folder: `fretty-mpc-v0.7.1.zip`, `fretty-instruments-1-v0.6.0.zip`
+Download all three zips to your Windows **Downloads** folder: `fretty-mpc-v0.7.2.zip`, `fretty-instruments-1-v0.6.0.zip`
 and `fretty-instruments-2-v0.6.0.zip` (the instruments are split only because of a download size limit; they have not
 changed since v0.6.0).
 Start Docker Desktop, then paste this one line into Ubuntu:
 
 ```sh
-rm -rf ~/fretty-mpc && python3 -m zipfile -e /mnt/c/Users/*/Downloads/fretty-mpc-v0.7.1.zip ~/ && bash ~/fretty-mpc/install.sh
+rm -rf ~/fretty-mpc && python3 -m zipfile -e /mnt/c/Users/*/Downloads/fretty-mpc-v0.7.2.zip ~/ && bash ~/fretty-mpc/install.sh
 ```
 
 `install.sh` adds the instruments from the other two zips, checks Docker and the toolchain (`~/mpc-vst-plugins`, cloned
-if missing), builds, and copies `Fretty-0.7.1-mpc-armv7.zip` into your Windows Downloads. It stops with a plain
+if missing), builds, and copies `Fretty-0.7.2-mpc-armv7.zip` into your Windows Downloads. It stops with a plain
 message if something is missing; fix that and run `bash ~/fretty-mpc/install.sh` again.
 Expected at the end of the build output:
 - `exported: VSTPluginMain`
 - `highest glibc: GLIBC_2.x` (2.31 or lower is ideal; above 2.36 would not load)
-- `dist/Fretty-0.7.1-mpc-armv7.zip`, about 68 MB
+- `dist/Fretty-0.7.2-mpc-armv7.zip`, about 68 MB
 
 The first build with the new page also downloads the toolchain's artwork renderer image (Playwright, ~1-2 GB, once).
 
