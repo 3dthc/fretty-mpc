@@ -36,17 +36,20 @@ The touchscreen page is still a placeholder (auto-layout) until the UI design is
 | A1 and up | the guitar (D♭2 with DROP D♭ on) |
 
 ## Build
-Next to a checkout of `mpc-vst-plugins`, from Ubuntu (WSL) with Docker, `python3` and `python3-numpy`:
+Next to a checkout of `mpc-vst-plugins`, from Ubuntu (WSL) with Docker and `python3` (`python3-numpy` only to re-pack the samples):
 
 ```sh
 vst/build.sh
 ```
 
-The first build clones Shinyguitar (pinned commit) into `third_party/` and packs it into `vst/build/engine/archtop.smp`
-(~250 MB). The plugin needs that `engine/` folder next to `archtop.so` in its plugin folder.
+The samples ship ready in `engine/archtop.smp`; the plugin needs that `engine/` folder next to `archtop.so` in its
+plugin folder (`make_release.sh` puts it there).
 
-**Memory:** the pack is memory-mapped, not loaded: the first 0.35 s of every sample (~26 MB) sits in RAM so notes
-start instantly, and a background thread reads each playing note's next second ahead of time.
+**The essential sample set:** from Shinyguitar's 4 velocity layers x 4 takes, Archtop keeps 3 layers (soft, medium,
+hard) and the 2 most typical takes of each, notes up to 4 s with a natural fade, and 2 takes of every release and noise.
+It is stored losslessly compressed (~20 MB) and decoded into RAM when the plugin loads (~72 MB, shared by all
+instances). `tools/pack_samples.py` rebuilds it from the source (`--full` keeps everything; much larger).
+`tools/check_codec.c` checks the decode is bit-exact.
 
 ## Offline checks
 - `../mpc-vst-plugins/tools/test_port.sh vst/vst.json` (ASan/UBSan host test)

@@ -3,10 +3,8 @@
  * Sound: Karoryfer's Shinyguitar (CC0), packed by tools/pack_samples.py into engine/archtop.smp:
  * each take is a stereo frame pair, L = magnetic pickup, R = microphone, so BLEND mixes them per sample.
  *
- * Memory: the pack is ~250 MB, too much to hold in RAM next to MPC. It is mmap'd read-only; the first
- * HEAD_SEC of every sample is copied into RAM (so a note always starts instantly) and a prefetch thread
- * touches the pages each playing voice will need over the next second, so tails come from the page cache.
- * The bank is shared by every instance in the process.
+ * Memory: the essential sample set is stored losslessly compressed (~20 MB on disk) and decoded into RAM
+ * on a loader thread when the plugin is first inserted (~70 MB, shared by every instance in the process).
  *
  * Playing model: six strings. Each note-on batch (a chord arrives in one block) is assigned to strings
  * (open strings, capo, drop tuning, a hand position that follows the music, or a fixed POSITION).
@@ -14,15 +12,12 @@
  * held, slurs into it (hammer-on / pull-off). STRUM spreads a chord low string to high.
  * ENGINE layers a plucked-string model (Karplus-Strong) on every note. SPACE is a small stereo reverb. */
 #define _GNU_SOURCE
-#include <fcntl.h>
 #include <math.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 #include "engine.h"
@@ -31,11 +26,9 @@
 #define NSTR 6
 #define MAX_V 32
 #define MAX_RR 8
-#define HEAD_SEC 0.35f
 #define KS_LEN 2048
 #define KS_MASK (KS_LEN - 1)
 #define MAX_EV 256
-#define WANT_SLOTS 512
 #define PI_F 3.14159265f
 
 enum { ZT_NOTE = 0, ZT_RELEASE = 1, ZT_NOISE = 2 };
@@ -51,98 +44,132 @@ typedef struct {
     char path[1024];
     uint8_t *map; size_t maplen;
     uint32_t nsamp, nzone;
-    const ent_t *ent; const zone_t *zone; const int16_t *data;
-    int16_t *head; uint32_t *hoff, *hlen;
-    pthread_t loader, prefetch; int have_loader, have_prefetch;
+    const ent_t *ent; const zone_t *zone;
+    int16_t *head; uint32_t *hoff, *hlen;     /* all samples, decoded */
+    pthread_t loader; int have_loader, own_tables;
 } bank_t;
 
 static bank_t g_bank;
 static pthread_mutex_t g_bank_mx = PTHREAD_MUTEX_INITIALIZER;
-static uint64_t g_want[WANT_SLOTS];      /* (sample + 1) << 32 | frame: what each voice is playing */
-static int g_next_inst;
 
 static int bank_state(void) { return __atomic_load_n(&g_bank.state, __ATOMIC_ACQUIRE); }
 
-static void sleep_ms(int ms) { struct timespec ts = { ms / 1000, (ms % 1000) * 1000000L }; nanosleep(&ts, NULL); }
+
+
+/* ---------- sample file (written by tools/pack_samples.py) ----------
+ * header: "ATSP", u32 version (2), u32 samples, u32 zones, u32 data offset
+ * then per sample { u32 byte offset into data, u32 frames }, then the zones (zone_t), then the data.
+ * Each sample: u32 len0, u32 len1, then two bitstreams (pickup, mic). A stream is 1024-frame blocks: a header byte
+ * (order << 5 | k), then one Rice code per frame (a run of q zeros, a 1, k low bits; 24 zeros = a raw 20-bit value)
+ * of the zigzagged residual of a fixed order-0..3 predictor that runs across blocks. Lossless 16-bit. */
+typedef struct { const uint8_t *p; size_t n, pos; uint64_t cache; int avail; } br_t;
+
+static inline void br_fill(br_t *b) {
+    while (b->avail <= 56) {
+        uint64_t byte = b->pos < b->n ? b->p[b->pos] : 0;
+        b->pos++;
+        b->cache |= byte << (56 - b->avail);
+        b->avail += 8;
+    }
+}
+static inline uint32_t br_take(br_t *b, int k) {   /* k <= 32, after br_fill */
+    if (!k) return 0;
+    uint32_t v = (uint32_t)(b->cache >> (64 - k));
+    b->cache <<= k; b->avail -= k;
+    return v;
+}
+
+static int decode_channel(const uint8_t *src, size_t len, int16_t *dst, uint32_t frames) {
+    br_t b = { src, len, 0, 0, 0 };
+    int32_t h1 = 0, h2 = 0, h3 = 0;
+    int order = 0, k = 0;
+    for (uint32_t i = 0; i < frames; i++) {
+        br_fill(&b);
+        if ((i & 1023) == 0) {                      /* block header */
+            uint32_t hd = br_take(&b, 8);
+            order = (int)(hd >> 5); k = (int)(hd & 31);
+            if (order > 3 || k > 20) return -1;
+            br_fill(&b);
+        }
+        int z = b.cache ? __builtin_clzll(b.cache) : 64;
+        uint32_t u;
+        if (z >= 24) { br_take(&b, 24); u = br_take(&b, 20); }
+        else { br_take(&b, z + 1); u = ((uint32_t)z << k) | br_take(&b, k); }
+        int32_t r = (int32_t)(u >> 1) ^ -(int32_t)(u & 1);
+        int32_t x;
+        switch (order) {
+        case 0: x = r; break;
+        case 1: x = r + h1; break;
+        case 2: x = r + 2 * h1 - h2; break;
+        default: x = r + 3 * h1 - 3 * h2 + h3; break;
+        }
+        if (x < -32768 || x > 32767) return -1;
+        dst[2 * (size_t)i] = (int16_t)x;
+        h3 = h2; h2 = h1; h1 = x;
+    }
+    return b.pos <= len + 8 ? 0 : -1;
+}
 
 static void *loader_main(void *arg) {
     (void)arg;
     bank_t *b = &g_bank;
-    int fd = open(b->path, O_RDONLY);
-    struct stat st;
-    if (fd < 0 || fstat(fd, &st) || st.st_size < 20) goto fail;
-    b->maplen = (size_t)st.st_size;
-    b->map = mmap(NULL, b->maplen, PROT_READ, MAP_SHARED, fd, 0);
-    close(fd); fd = -1;
-    if (b->map == MAP_FAILED) { b->map = NULL; goto fail; }
+    FILE *f = fopen(b->path, "rb");
+    long size = 0;
+    if (!f || fseek(f, 0, SEEK_END) || (size = ftell(f)) < 20 || fseek(f, 0, SEEK_SET)) goto fail;
+    b->maplen = (size_t)size;
+    b->map = malloc(b->maplen);
+    if (!b->map || fread(b->map, 1, b->maplen, f) != b->maplen) goto fail;
+    fclose(f); f = NULL;
     {
         const uint8_t *m = b->map;
         uint32_t ver, ns, nz, doff;
         if (memcmp(m, "ATSP", 4)) goto fail;
         memcpy(&ver, m + 4, 4); memcpy(&ns, m + 8, 4); memcpy(&nz, m + 12, 4); memcpy(&doff, m + 16, 4);
         size_t need = 20 + (size_t)ns * sizeof(ent_t) + (size_t)nz * sizeof(zone_t);
-        if (ver != 1 || ns == 0 || ns > 65535 || nz == 0 || nz > 1024 || doff != need || doff > b->maplen) goto fail;
+        if (ver != 2 || ns == 0 || ns > 65535 || nz == 0 || nz > 1024 || doff != need || doff > b->maplen) goto fail;
         b->nsamp = ns; b->nzone = nz;
         b->ent = (const ent_t *)(m + 20);
         b->zone = (const zone_t *)(m + 20 + ns * sizeof(ent_t));
-        b->data = (const int16_t *)(m + doff);
-        size_t frames_avail = (b->maplen - doff) / 4, head_total = 0;
-        for (uint32_t i = 0; i < ns; i++) {
-            if ((size_t)b->ent[i].off + b->ent[i].frames > frames_avail || b->ent[i].frames < 8) goto fail;
-            uint32_t h = (uint32_t)(HEAD_SEC * SR);
-            head_total += h < b->ent[i].frames ? h : b->ent[i].frames;
-        }
         for (uint32_t z = 0; z < nz; z++)
             for (int k = 0; k < b->zone[z].nrr && k < MAX_RR; k++)
                 if (b->zone[z].rr[k] >= ns) goto fail;
-        b->head = malloc(head_total * 4);
+        size_t total = 0, dlen = b->maplen - doff;
+        for (uint32_t i = 0; i < ns; i++) {
+            if (b->ent[i].frames < 8 || b->ent[i].frames > 60 * 44100 || (size_t)b->ent[i].off + 8 > dlen) goto fail;
+            total += b->ent[i].frames;
+        }
+        b->head = malloc(total * 4);
         b->hoff = malloc(ns * sizeof(uint32_t));
         b->hlen = malloc(ns * sizeof(uint32_t));
         if (!b->head || !b->hoff || !b->hlen) goto fail;
         size_t at = 0;
         for (uint32_t i = 0; i < ns && !b->stop; i++) {
-            uint32_t h = (uint32_t)(HEAD_SEC * SR);
-            if (h > b->ent[i].frames) h = b->ent[i].frames;
-            b->hoff[i] = (uint32_t)at; b->hlen[i] = h;
-            memcpy(b->head + at * 2, b->data + (size_t)b->ent[i].off * 2, (size_t)h * 4);
-            at += h;
+            const uint8_t *src = m + doff + b->ent[i].off;
+            uint32_t l0, l1;
+            memcpy(&l0, src, 4); memcpy(&l1, src + 4, 4);
+            if ((size_t)b->ent[i].off + 8 + (size_t)l0 + l1 > dlen) goto fail;
+            int16_t *dst = b->head + at * 2;
+            if (decode_channel(src + 8, l0, dst, b->ent[i].frames) ||
+                decode_channel(src + 8 + l0, l1, dst + 1, b->ent[i].frames)) goto fail;
+            b->hoff[i] = (uint32_t)at; b->hlen[i] = b->ent[i].frames;
+            at += b->ent[i].frames;
         }
         if (b->stop) goto fail;
+    }
+    {   /* keep only the small tables and the decoded audio; drop the compressed file */
+        ent_t *e = malloc(b->nsamp * sizeof(ent_t));
+        zone_t *z = malloc(b->nzone * sizeof(zone_t));
+        if (!e || !z) { free(e); free(z); goto fail; }
+        memcpy(e, b->ent, b->nsamp * sizeof(ent_t)); memcpy(z, b->zone, b->nzone * sizeof(zone_t));
+        b->ent = e; b->zone = z;
+        free(b->map); b->map = NULL;
+        b->own_tables = 1;
     }
     __atomic_store_n(&b->state, BANK_READY, __ATOMIC_RELEASE);
     return NULL;
 fail:
-    if (fd >= 0) close(fd);
+    if (f) fclose(f);
     __atomic_store_n(&b->state, BANK_FAILED, __ATOMIC_RELEASE);
-    return NULL;
-}
-
-/* Keeps the pages playing voices are about to read in the page cache, and warms the rest of the file slowly. */
-static void *prefetch_main(void *arg) {
-    (void)arg;
-    bank_t *b = &g_bank;
-    size_t warm = 0;
-    volatile uint8_t sink = 0;
-    while (!b->stop) {
-        sleep_ms(4);
-        if (bank_state() != BANK_READY) continue;
-        const uint8_t *base = (const uint8_t *)b->data;
-        size_t dlen = b->maplen - ((const uint8_t *)b->data - b->map);
-        for (int i = 0; i < WANT_SLOTS; i++) {
-            uint64_t w = __atomic_load_n(&g_want[i], __ATOMIC_RELAXED);
-            if (!w) continue;
-            uint32_t s = (uint32_t)(w >> 32) - 1, pos = (uint32_t)w;
-            if (s >= b->nsamp) continue;
-            const ent_t *e = &b->ent[s];
-            if (pos >= e->frames) continue;
-            size_t a = ((size_t)e->off + pos) * 4, z = ((size_t)e->off + e->frames) * 4, ahead = a + (size_t)SR * 4;
-            if (z > ahead) z = ahead;
-            for (size_t p = a & ~(size_t)4095; p < z && p < dlen; p += 4096) sink ^= base[p];
-        }
-        /* background warm-up: ~16 MB/s so it never competes with MPC for the disk */
-        for (int k = 0; k < 16 && warm < dlen; k++, warm += 4096) sink ^= base[warm];
-    }
-    (void)sink;
     return NULL;
 }
 
@@ -154,7 +181,6 @@ static void bank_acquire(const char *data_dir) {
         snprintf(g_bank.path, sizeof g_bank.path, "%s/archtop.smp", data_dir ? data_dir : ".");
         g_bank.state = BANK_LOADING;
         g_bank.have_loader = !pthread_create(&g_bank.loader, NULL, loader_main, NULL);
-        g_bank.have_prefetch = !pthread_create(&g_bank.prefetch, NULL, prefetch_main, NULL);
         if (!g_bank.have_loader) g_bank.state = BANK_FAILED;
     }
     pthread_mutex_unlock(&g_bank_mx);
@@ -165,18 +191,16 @@ static void bank_release(void) {
     if (--g_bank.refs == 0) {
         g_bank.stop = 1;
         if (g_bank.have_loader) pthread_join(g_bank.loader, NULL);
-        if (g_bank.have_prefetch) pthread_join(g_bank.prefetch, NULL);
-        if (g_bank.map) munmap(g_bank.map, g_bank.maplen);
+        free(g_bank.map);
+        if (g_bank.own_tables) { free((void *)g_bank.ent); free((void *)g_bank.zone); }
         free(g_bank.head); free(g_bank.hoff); free(g_bank.hlen);
         memset(&g_bank, 0, sizeof g_bank);
-        memset(g_want, 0, sizeof g_want);
     }
     pthread_mutex_unlock(&g_bank_mx);
 }
 
 static inline const int16_t *frame_ptr(const bank_t *b, uint32_t s, uint32_t i) {
-    if (i < b->hlen[s]) return b->head + 2 * ((size_t)b->hoff[s] + i);
-    return b->data + 2 * ((size_t)b->ent[s].off + i);
+    return b->head + 2 * ((size_t)b->hoff[s] + i);
 }
 
 /* ---------- parameters ---------- */
@@ -238,7 +262,6 @@ typedef struct {
     float rv_buf_total;
     char chord[32];
     int rev, last_state;
-    int slot;
 } inst_t;
 
 static uint32_t rnd(inst_t *s) { s->rng ^= s->rng << 13; s->rng ^= s->rng >> 17; s->rng ^= s->rng << 5; return s->rng; }
@@ -539,16 +562,12 @@ static void *eng_create(const char *data_dir) {
     s->rng = 0x9E3779B9u ^ (uint32_t)(uintptr_t)s;
     s->last_state = -1;
     snprintf(s->chord, sizeof s->chord, "-");
-    pthread_mutex_lock(&g_bank_mx);
-    s->slot = (g_next_inst++ * MAX_V) % WANT_SLOTS;
-    pthread_mutex_unlock(&g_bank_mx);
     bank_acquire(data_dir);
     return s;
 }
 
 static void eng_destroy(void *inst) {
     inst_t *s = inst;
-    for (int i = 0; i < MAX_V; i++) __atomic_store_n(&g_want[(s->slot + i) % WANT_SLOTS], 0, __ATOMIC_RELAXED);
     bank_release();
     free(s->ksmem); free(s->rv); free(s);
 }
@@ -765,13 +784,6 @@ static void eng_render(void *inst, int16_t *out, int frames) {
             }
         }
     }
-    /* tell the prefetch thread what each voice will read next */
-    for (int vi = 0; vi < MAX_V; vi++) {
-        voice_t *v = &s->v[vi];
-        uint64_t w = (v->on && !v->samp_done) ? ((uint64_t)(v->samp + 1) << 32) | (uint32_t)v->pos : 0;
-        __atomic_store_n(&g_want[(s->slot + vi) % WANT_SLOTS], w, __ATOMIC_RELAXED);
-    }
-
     float space = s->p[P_SPACE];
     float vol = s->p[P_VOLUME] / 0.9f;
     float dry = (1.0f - 0.35f * space) * vol, wet = space * vol * 0.9f;

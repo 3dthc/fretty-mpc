@@ -12,14 +12,14 @@ B="$HERE/vst/build"
 "$HERE/vst/build.sh"
 
 [ -f "$B/archtop.so" ] || { echo "build failed: no $B/archtop.so" >&2; exit 1; }
-[ -f "$B/engine/archtop.smp" ] || { echo "missing $B/engine/archtop.smp" >&2; exit 1; }
+[ -f "$HERE/engine/archtop.smp" ] || { echo "missing $HERE/engine/archtop.smp" >&2; exit 1; }
 
 python3 "$MPC_VST/tools/release.py" \
   --so "$B/archtop.so" \
   --skin "$B/skin/3dthc - VST - Archtop" \
   --entry "$B/pluginlist-entry.xml" \
   --version "$VERSION" \
-  --extra "$B/engine:engine" \
+  --extra "$HERE/engine:engine" \
   --about "Sampled archtop guitar: pickup + mic blend, six-string playing model (Karoryfer Shinyguitar samples, CC0)." \
   -o "$HERE/dist"
 
