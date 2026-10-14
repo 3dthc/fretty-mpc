@@ -10,6 +10,7 @@
 #include "engine.h"
 
 int fretty_bank_state(void);
+int fretty_bank_state_of(int i);
 
 typedef struct { double t; uint8_t a, b, c; const char *pk, *pv; } ev_t;
 static ev_t evs[4096];
@@ -28,15 +29,48 @@ int main(int argc, char **argv) {
     if (argc < 3) { fprintf(stderr, "usage: %s <data dir> out.wav\n", argv[0]); return 2; }
     const mpc_engine_t *E = mpc_engine();
     void *s = E->create(argv[1]);
-    for (int i = 0; i < 3000 && fretty_bank_state() == 1; i++) usleep(10000);
-    if (fretty_bank_state() != 2) { fprintf(stderr, "bank not ready (%d)\n", fretty_bank_state()); return 1; }
+    {   /* load every instrument first (the plugin loads one when it is first selected) */
+        int16_t tmp[256];
+        for (int k = 0; k < 5; k++) {
+            char v[16]; snprintf(v, sizeof v, "%d", k);
+            E->set_param(s, "instrument", v);
+            E->render(s, tmp, 128);
+            for (int w = 0; w < 3000 && fretty_bank_state_of(k) == 1; w++) usleep(10000);
+            if (fretty_bank_state_of(k) != 2) { fprintf(stderr, "instrument %d not ready (%d)\n", k, fretty_bank_state_of(k)); return 1; }
+        }
+        E->set_param(s, "instrument", "0");
+    }
 
     const int C[] = { 48, 52, 55, 60, 64 }, Am[] = { 45, 52, 57, 60, 64 }, F[] = { 41, 48, 53, 57, 60, 65 },
               G[] = { 43, 47, 50, 55, 59, 67 };
     double t = 0.2;
     if (argc > 3 && !strcmp(argv[3], "pitch")) {      /* every note 40..84, engine off, for a pitch check */
         prm(0, "engine", "0"); prm(0, "space", "0"); prm(0, "noise", "0");
+        if (argc > 4) prm(0, "instrument", argv[4]);
         for (int k = 40; k <= 84; k++) { note(t, 0.9, k, 100); t += 1.0; }
+        goto run;
+    }
+    if (argc > 3 && !strcmp(argv[3], "tour")) {       /* every instrument, the effects and the synth */
+        static const char *IN[5] = { "0", "1", "2", "3", "4" };
+        for (int k = 0; k < 5; k++) {
+            prm(t, "instrument", IN[k]);
+            chord(t + 0.05, 1.4, C, 5, 100); t += 1.6;
+            int m[] = { 64, 67, 69, 72 };
+            for (int q = 0; q < 4; q++) { note(t, 0.3, m[q], 70 + q * 15); t += 0.3; }
+            t += 0.8;
+        }
+        prm(t, "instrument", "1");                                       /* electric: crunch, then chorus */
+        prm(t, "drive", "0.55"); chord(t + 0.05, 1.4, G, 6, 110); t += 1.8;
+        prm(t, "drive", "0.9"); for (int q = 0; q < 8; q++) { note(t, 0.14, 40 + (q % 2) * 7, 120); t += 0.18; } t += 0.5;
+        prm(t, "drive", "0"); prm(t, "chorus", "0.7"); chord(t + 0.05, 1.8, Am, 5, 95); t += 2.2;
+        prm(t, "chorus", "0");
+        prm(t, "instrument", "0"); prm(t, "b_on", "1");                  /* archtop + synth pad */
+        prm(t, "wave", "2"); prm(t, "attack", "0.45"); prm(t, "release", "0.6"); prm(t, "cutoff", "0.5");
+        chord(t + 0.05, 2.5, F, 6, 90); t += 3.5;
+        prm(t, "a_on", "0"); prm(t, "wave", "3"); prm(t, "attack", "0.02"); prm(t, "release", "0.3");   /* synth solo */
+        prm(t, "cutoff", "0.55"); prm(t, "resonance", "0.6");
+        for (int q = 0; q < 8; q++) { note(t, 0.2, 52 + (q * 5) % 12, 100); t += 0.25; }
+        t += 1.0;
         goto run;
     }
     /* 1. strummed progression, default settings */

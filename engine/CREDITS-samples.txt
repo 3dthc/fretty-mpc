@@ -1,4 +1,7 @@
-Samples: Shinyguitar by Karoryfer Lecolds (D. Smolken), archtop guitar.
-Source: https://github.com/sfzinstruments/karoryfer.shinyguitar
-License: CC0 1.0 Universal (public domain dedication).
-Repacked for Fretty: pickup + mic channels paired, tails trimmed, 16-bit.
+Fretty's instruments (all CC0 1.0 Universal, public domain dedication):
+  acoustic.smp     Shinyguitar by Karoryfer Lecolds - https://github.com/sfzinstruments/karoryfer.shinyguitar
+  electric.smp     Emilyguitar by Karoryfer Lecolds - https://github.com/sfzinstruments/karoryfer.emilyguitar
+  folkharp.smp     VCSL Folk Harp, Versilian Studios - https://github.com/sgossner/VCSL
+  concertharp.smp  VCSL Concert Harp, Versilian Studios
+  strumstick.smp   VCSL Strumstick, Versilian Studios
+Repacked for Fretty: trimmed, 16-bit, losslessly compressed.

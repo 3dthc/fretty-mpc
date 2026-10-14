@@ -4,6 +4,8 @@
     python3 tools/make_skin.py            (needs Playwright's Chromium and Pillow; run on a PC, not in the build)
 
 Writes vst/art/... (PNGs) and vst/layout.conf; both are committed, so the plugin build only reads them.
+Two pages: PLAY (the fretboard, the guitar, FX and output knobs, instrument and theme) and SYNTH (layer B's
+oscillator, filter and envelope, the pluck layer, and the A / B layer switches and levels).
 
 What is static (the chassis, the neck, panel titles, the chrome wordmark) is one background picture per theme. What
 moves is a control: knobs (one filmstrip for every theme), the switches (an off/on picture pair per theme) and, per
@@ -25,28 +27,49 @@ ART = os.path.join(VST, "art")
 Y_OFF = 86
 
 THEMES = ["black", "sunburst", "grey"]          # index = the "theme" parameter's option
-TOGGLES = [   # key, x, y, w, h, labels (off / on): the button row (y 236)
+TOGGLES = [   # key, x, y, w, h, label: the PLAY page's button row (y 236)
     ("artic", 8, 236, 326, 52, None),          # one picture with two lit halves: SUSTAIN | PALM MUTE
     ("legato", 348, 236, 156, 52, "LEGATO"),
     ("strum", 518, 236, 156, 52, "STRUM"),
-    ("drop", 688, 236, 156, 52, "DROP D♭"),
-    ("engine", 858, 236, 156, 52, "ENGINE"),
+    ("drop", 688, 236, 156, 52, "DROP D\u266d"),
+    ("engine", 858, 236, 156, 52, "PLUCK"),
 ]
 COLW = 141
-PANELS = [("GUITAR", "PICKUP + MIC", 8, 4), ("ENGINE", "PLUCK", 8 + 4 * COLW + 8, 2), ("OUTPUT", "", 8 + 6 * COLW + 16, 1)]
+PANELS = [("GUITAR", "", 8, 4), ("FX", "", 8 + 4 * COLW + 8, 2), ("OUTPUT", "", 8 + 6 * COLW + 16, 1)]
 KP_Y, KP_H = 300, 324
 KNOB_R = 44                                      # the builder's knob box is 2r + 10
 KNOB_ROWS = (404, 544)
 KNOBS = [  # panel, col, row, key, label
     (0, 0, 0, "blend", "BLEND"), (0, 1, 0, "tone", "TONE"), (0, 2, 0, "damp", "DAMP"), (0, 3, 0, "vibrato", "VIBRATO"),
     (0, 0, 1, "position", "POSITION"), (0, 1, 1, "capo", "CAPO"), (0, 2, 1, "strum_speed", "STRUM SPD"), (0, 3, 1, "noise", "NOISE"),
-    (1, 0, 0, "eng_mix", "MIX"), (1, 1, 0, "eng_color", "COLOR"), (1, 0, 1, "eng_sustain", "SUSTAIN"), (1, 1, 1, "eng_detune", "DETUNE"),
+    (1, 0, 0, "drive", "DRIVE"), (1, 1, 0, "chorus", "CHORUS"), (1, 0, 1, "eng_mix", "PLUCK"), (1, 1, 1, "eng_sustain", "RING"),
     (2, 0, 0, "space", "SPACE"), (2, 0, 1, "volume", "VOLUME"),
 ]
-STRIP = (1032, 236, 240, 384)                    # right column: wordmark + theme (MPC's Q-Link sidebar may cover it)
-THEME_POP = (1152, 560, 216, 52)                 # theme stepper: cx, cy, w, h (arrows either side)
+STRIP = (1032, 236, 240, 384)                    # right column: wordmark + steppers (MPC's Q-Link sidebar may cover it)
+STEPPERS = [  # key, label, cx, cy, w, h, text size: the PLAY page's right column
+    ("instrument", "INSTRUMENT", 1152, 432, 224, 52, 15),
+    ("theme", "THEME", 1152, 552, 224, 52, 17),
+]
 NECK = dict(x0=132, x1=1272, yc=106, hn=70, he=84)
 METER_X0 = 36                                    # string pictures span the headstock badges to the right edge
+
+# ---- the SYNTH page
+S_PANELS = [  # title, x, y, w, h
+    ("OSCILLATOR", 8, 8, 580, 284), ("PLUCK LAYER", 596, 8, 420, 284),
+    ("ENVELOPE", 8, 300, 564, 324), ("FILTER", 580, 300, 436, 324),
+]
+S_STRIP = (1032, 8, 240, 616)
+WAVE_BOX = (28, 44, 260, 136)                    # the waveform picture
+WAVE_STEP = ("wave", 158, 236, 260, 52, 17)      # key, cx, cy, w, h, text size
+S_KNOBS = [  # key, label, cx, cy, bw
+    ("octave", "OCTAVE", 390, 150, 124), ("syn_detune", "DETUNE", 516, 150, 124),
+    ("eng_color", "COLOR", 736, 150, 136), ("eng_detune", "DETUNE", 876, 150, 136),
+    ("attack", "ATTACK", 78, 520, 136), ("decay", "DECAY", 219, 520, 136), ("sustain", "SUSTAIN", 360, 520, 136),
+    ("release", "RELEASE", 501, 520, 136),
+    ("cutoff", "CUTOFF", 711, 520, 136), ("resonance", "RESONANCE", 885, 520, 136),
+    ("a_level", "A LEVEL", 1092, 500, 112), ("b_level", "B LEVEL", 1212, 500, 112),
+]
+S_TOGGLES = [("a_on", 1048, 180, 208, 56, "A \u00b7 GUITAR"), ("b_on", 1048, 252, 208, 56, "B \u00b7 SYNTH")]
 
 
 def knob_xy(p, col, row):
@@ -205,13 +228,72 @@ function background(name) {
     if (sub) text(sub, x + w - 20, KP_Y + 24, 11, '#8e8e8e', { weight: 600, ls: 1.6, align: 'right' });
   }
   for (const [x, y, label] of KNOB_LABELS_JSON) text(label, x, y - 56, 14, '#efe9d8', { align: 'center', weight: 700, ls: 1.6 });
-  // right column: wordmark + theme
+  // right column: wordmark + instrument and theme steppers
   const [sx, sy, sw, sh] = STRIP_JSON; panel(t, sx, sy, sw, sh);
-  { const dark = { panel1: '#151515', panel2: '#0c0c0c', edge: 'rgba(255,255,255,0.10)', hi: 'rgba(255,255,255,0.06)' };
-    panel(dark, sx + 14, sy + 70, sw - 28, 150, 12); }
-  chromeWordmark('Fretty', sx + sw / 2, sy + 168, 74);
-  text('THEME', sx + sw / 2, sy + 278, 12, t.chassisText, { weight: 700, ls: 3, align: 'center' });
-  { const [cx, cy, w, h] = THEME_POP_JSON; arrowPlates(w, h, cx - w / 2, cy - h / 2); }
+  wordPlate(sx + 14, sy + 14, sw - 28, 104, 60);
+  for (const [key, label, cx, cy, w, h] of STEPPERS_JSON) {
+    text(label, cx, cy - h / 2 - 14, 12, t.chassisText, { weight: 700, ls: 3, align: 'center' });
+    arrowPlates(w, h, cx - w / 2, cy - h / 2);
+  }
+  return cv.toDataURL('image/png');
+}
+function wordPlate(x, y, w, h, size) {
+  const dark = { panel1: '#151515', panel2: '#0c0c0c', edge: 'rgba(255,255,255,0.10)', hi: 'rgba(255,255,255,0.06)' };
+  panel(dark, x, y, w, h, 12);
+  chromeWordmark('Fretty', x + w / 2, y + h * 0.66, size);
+}
+
+// ---------- the SYNTH page background (one per theme) ----------
+function synthBackground(name) {
+  const t = T[name], W = 1280, H = 628; setup(W, H);
+  const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, t.bg1); g.addColorStop(1, t.bg2); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  noise(t, W, H);
+  for (const [title, x, y, w, h] of SYNTH_PANEL_DATA) { panel(t, x, y, w, h); text(title, x + 20, y + 24, 13, t.title, { weight: 800, ls: 3 }); }
+  // the waveform screen's bezel, and the wave stepper
+  { const [x, y, w, h] = WAVE_BOX_JSON; rrect(x - 6, y - 6, w + 12, h + 12, 12); ctx.fillStyle = '#0a0a0a'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1; ctx.stroke(); }
+  { const [key, cx, cy, w, h] = WAVE_STEP_JSON; arrowPlates(w, h, cx - w / 2, cy - h / 2); }
+  // envelope and filter sketches above their knobs
+  adsrIcon(40, 352, 500, 92, t.title); filterIcon(612, 352, 372, 92, t.title);
+  // right column: wordmark, the layer switches, their levels
+  const [sx, sy, sw, sh] = SYNTH_COLUMN_DATA; panel(t, sx, sy, sw, sh);
+  wordPlate(sx + 14, sy + 14, sw - 28, 104, 60);
+  text('LAYERS', sx + sw / 2, sy + 156, 12, t.chassisText, { weight: 700, ls: 3, align: 'center' });
+  text('TAP TO SOLO OR LAYER', sx + sw / 2, sy + 330, 10, t.chassisText, { weight: 600, ls: 1.6, align: 'center' });
+  for (const [key, label, cx, cy] of SYNTH_KNOB_DATA) text(label, cx, cy - 56, 14, '#efe9d8', { align: 'center', weight: 700, ls: 1.6 });
+  return cv.toDataURL('image/png');
+}
+function adsrIcon(x, y, w, h, color) {
+  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.globalAlpha = 0.85;
+  ctx.beginPath(); ctx.moveTo(x, y + h); ctx.lineTo(x + w * 0.16, y); ctx.quadraticCurveTo(x + w * 0.24, y + h * 0.42, x + w * 0.38, y + h * 0.42);
+  ctx.lineTo(x + w * 0.72, y + h * 0.42); ctx.quadraticCurveTo(x + w * 0.8, y + h * 0.42, x + w, y + h); ctx.stroke();
+  ctx.globalAlpha = 0.12; ctx.fillStyle = color; ctx.lineTo(x, y + h); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, y + h + 0.5); ctx.lineTo(x + w, y + h + 0.5); ctx.stroke(); ctx.restore();
+}
+function filterIcon(x, y, w, h, color) {
+  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.globalAlpha = 0.85;
+  ctx.beginPath(); ctx.moveTo(x, y + h * 0.45);
+  ctx.lineTo(x + w * 0.42, y + h * 0.45); ctx.quadraticCurveTo(x + w * 0.52, y + h * 0.45, x + w * 0.55, y + h * 0.05);
+  ctx.quadraticCurveTo(x + w * 0.6, y + h * 0.5, x + w * 0.72, y + h * 0.9); ctx.lineTo(x + w, y + h); ctx.stroke();
+  ctx.globalAlpha = 0.12; ctx.fillStyle = color; ctx.lineTo(x, y + h); ctx.lineTo(x, y + h * 0.45); ctx.fill(); ctx.restore();
+}
+// one picture per wave shape, the same in every theme
+function wavePicture(kind, w, h) {
+  setup(w, h);
+  rrect(0, 0, w, h, 8); ctx.fillStyle = '#0d0d0d'; ctx.fill();
+  ctx.save(); rrect(0, 0, w, h, 8); ctx.clip();
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
+  for (let gx = 0; gx <= w; gx += w / 8) { ctx.beginPath(); ctx.moveTo(gx + 0.5, 0); ctx.lineTo(gx + 0.5, h); ctx.stroke(); }
+  for (let gy = 0; gy <= h; gy += h / 4) { ctx.beginPath(); ctx.moveTo(0, gy + 0.5); ctx.lineTo(w, gy + 0.5); ctx.stroke(); }
+  const pad = 16, mid = h / 2, amp = h * 0.32, cyc = 2;
+  const f = u => { const ph = (u * cyc) % 1;
+    return kind === 0 ? Math.sin(2 * Math.PI * ph) : kind === 1 ? 1 - 4 * Math.abs(ph - 0.5) : kind === 2 ? 2 * ph - 1 : (ph < 0.5 ? 1 : -1); };
+  ctx.beginPath();
+  for (let i = 0; i <= 400; i++) { const u = i / 400, x = pad + u * (w - 2 * pad), y = mid - f(u) * amp;
+    if (kind >= 2 && i > 0) { const pu = (i - 1) / 400, jump = Math.abs(f(u) - f(pu)) > 1; if (jump) { ctx.lineTo(x, mid - f(pu) * amp); } }
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+  ctx.save(); ctx.shadowColor = 'rgba(255,236,200,0.9)'; ctx.shadowBlur = 10; ctx.strokeStyle = '#f6eedd'; ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.stroke(); ctx.restore();
+  ctx.restore();
   return cv.toDataURL('image/png');
 }
 
@@ -320,7 +402,7 @@ function arrowPlates(w, h, ox, oy) {
   ctx.restore();
 }
 const COLW = COLW_JSON, KP_Y = KP_Y_JSON, KP_H = KP_H_JSON, METER_X0 = METER_X0_JSON;
-window.API = { arrowPlates, background, toggleImage, knobStrip, vibStrip, fretStrip, meterBox };
+window.API = { arrowPlates, background, synthBackground, wavePicture, toggleImage, knobStrip, vibStrip, fretStrip, meterBox };
 </script></body></html>"""
 
 
@@ -336,7 +418,10 @@ def main():
                 .replace("NECK_JSON", json.dumps(NECK)).replace("PANELS_JSON", json.dumps(PANELS))
                 .replace("STRIP_JSON", json.dumps(STRIP)).replace("COLW_JSON", str(COLW)).replace("KP_Y_JSON", str(KP_Y))
                 .replace("KP_H_JSON", str(KP_H)).replace("METER_X0_JSON", str(METER_X0))
-                .replace("THEME_POP_JSON", json.dumps(THEME_POP)).replace("KNOB_LABELS_JSON", json.dumps([list(knob_xy(p_, c, r)) + [lab] for p_, c, r, k, lab in KNOBS])))
+                .replace("STEPPERS_JSON", json.dumps(STEPPERS)).replace("SYNTH_PANEL_DATA", json.dumps(S_PANELS))
+                .replace("SYNTH_COLUMN_DATA", json.dumps(S_STRIP)).replace("WAVE_BOX_JSON", json.dumps(WAVE_BOX))
+                .replace("WAVE_STEP_JSON", json.dumps(WAVE_STEP)).replace("SYNTH_KNOB_DATA", json.dumps(S_KNOBS))
+                .replace("KNOB_LABELS_JSON", json.dumps([list(knob_xy(p_, c, r)) + [lab] for p_, c, r, k, lab in KNOBS])))
     tmp = os.path.join(ART, "_page.html")
     os.makedirs(ART, exist_ok=True)
     open(tmp, "w").write(page_src)
@@ -350,11 +435,14 @@ def main():
         pg.wait_for_function("document.fonts.check('74px Script')")
         for th in THEMES:
             save(pg.evaluate("API.background(%r)" % th), os.path.join(ART, th, "bg.png"))
-            for key, x, y, w, h, label in TOGGLES:
+            save(pg.evaluate("API.synthBackground(%r)" % th), os.path.join(ART, th, "synth_bg.png"))
+            for key, x, y, w, h, label in TOGGLES + S_TOGGLES:
                 for on in (0, 1):
                     save(pg.evaluate("API.toggleImage(%r, %d, %d, %s, %s)" % (th, w, h, json.dumps(label), "true" if on else "false")),
                          os.path.join(ART, th, "%s_%s.png" % (key, "on" if on else "off")))
         save(pg.evaluate("API.knobStrip(128, %d)" % (KNOB_R + 5)), os.path.join(ART, "knob.png"))
+        for k, name in enumerate(["sine", "triangle", "saw", "square"]):
+            save(pg.evaluate("API.wavePicture(%d, %d, %d)" % (k, WAVE_BOX[2], WAVE_BOX[3])), os.path.join(ART, "wave_%s.png" % name))
         boxes = []
         for i in range(6):
             save(pg.evaluate("API.vibStrip(%d)" % i), os.path.join(ART, "s%d_vib.png" % (i + 1)))
@@ -369,7 +457,7 @@ def main():
 
 def write_layout(boxes):
     L = []
-    L.append("# Fretty's page. Generated by tools/make_skin.py (edit that, not this file).")
+    L.append("# Fretty's pages. Generated by tools/make_skin.py (edit that, not this file).")
     L.append("art_css=skin.css")
     for k, v in [("bg", "0b0b0b"), ("ink", "efe9d8"), ("ink_dim", "d9d3c5"), ("accent", "f3ecdc"), ("accent_hi", "ffffff"),
                  ("lcd", "141414"), ("line", "3a3a3a"), ("box", "141414"), ("seg_active", "f3ecdc"), ("seg_inactive", "141414"),
@@ -377,7 +465,19 @@ def write_layout(boxes):
         L.append("theme_%s=%s" % (k, v))
     keys = [k[3] for k in KNOBS]
     L.append("qlinks_track = " + ",".join(keys))
-    L.append("[tab FRETTY]")
+
+    def knob(cx, cy, key, label, bw=136):
+        L.append('knob cx=%d cy=%d r=%d label="%s" key=%s ns=0 vs=21 bw=%d strip=art/knob.png frames=128' % (
+            cx, cy + Y_OFF, KNOB_R, label, key, bw))
+
+    def toggles(lst):
+        for i, th in enumerate(THEMES):
+            for key, x, y, w, h, label in lst:
+                L.append('toggle cx=%d cy=%d w=%d h=%d label="" key=%s ns=0 img=art/%s/%s_off.png img_on=art/%s/%s_on.png when=theme:%d' % (
+                    x + w // 2, y + h // 2 + Y_OFF, w + 16, h + 16, key, th, key, th, key, i))
+
+    # ---- PLAY
+    L.append("[tab PLAY]")
     for i, th in enumerate(THEMES):
         L.append("art file=art/%s/bg.png x=0 y=%d w=1280 h=628 fit=stretch when=theme:%d" % (th, Y_OFF, i))
     for i, b in enumerate(boxes):   # string pictures: ring first, the lit fret on top
@@ -386,20 +486,31 @@ def write_layout(boxes):
     for i, b in enumerate(boxes):
         L.append("meter cx=%d cy=%d w=%d h=%d key=s%d_fret strip=art/s%d_fret.png frames=17" % (
             b["x"] + b["w"] // 2, b["y"] + b["h"] // 2 + Y_OFF, b["w"], b["h"], i + 1, i + 1))
-    for i, th in enumerate(THEMES):
-        for key, x, y, w, h, label in TOGGLES:
-            L.append('toggle cx=%d cy=%d w=%d h=%d label="" key=%s ns=0 img=art/%s/%s_off.png img_on=art/%s/%s_on.png when=theme:%d' % (
-                x + w // 2, y + h // 2 + Y_OFF, w + 16, h + 16, key, th, key, th, key, i))
+    toggles(TOGGLES)
     for p, col, row, key, label in KNOBS:
         x, y = knob_xy(p, col, row)
-        L.append('knob cx=%d cy=%d r=%d label="%s" key=%s ns=0 vs=21 bw=136 strip=art/knob.png frames=128' % (x, y + Y_OFF, KNOB_R, label, key))
-    cx, cy, w, h = THEME_POP
-    L.append('stepper cx=%d cy=%d w=%d h=%d label="" key=theme tsize=20 talign=center' % (cx, cy + Y_OFF, w, h))
-    L.append('qlinks "FRETTY" = ' + ",".join(keys))
+        knob(x, y, key, label)
+    for key, label, cx, cy, w, h, ts in STEPPERS:
+        L.append('stepper cx=%d cy=%d w=%d h=%d label="" key=%s tsize=%d talign=center' % (cx, cy + Y_OFF, w, h, key, ts))
+    L.append('qlinks "PLAY" = ' + ",".join(keys))
+
+    # ---- SYNTH
+    L.append("[tab SYNTH]")
+    for i, th in enumerate(THEMES):
+        L.append("art file=art/%s/synth_bg.png x=0 y=%d w=1280 h=628 fit=stretch when=theme:%d" % (th, Y_OFF, i))
+    x, y, w, h = WAVE_BOX
+    L.append('picture x=%d y=%d w=%d h=%d key=wave files="art/wave_sine.png,art/wave_triangle.png,art/wave_saw.png,art/wave_square.png"' % (
+        x, y + Y_OFF, w, h))
+    key, cx, cy, w, h, ts = WAVE_STEP
+    L.append('stepper cx=%d cy=%d w=%d h=%d label="" key=%s tsize=%d talign=center' % (cx, cy + Y_OFF, w, h, key, ts))
+    toggles(S_TOGGLES)
+    for key, label, cx, cy, bw in S_KNOBS:
+        knob(cx, cy, key, label, bw)
+    L.append('qlinks "SYNTH" = ' + ",".join(k[0] for k in S_KNOBS))
     open(os.path.join(VST, "layout.conf"), "w").write("\n".join(L) + "\n")
     css = os.path.join(VST, "skin.css")
     if not os.path.exists(css):
-        open(css, "w").write("/* Fretty: restyles the renderer's own drawings (the theme popup). */\n")
+        open(css, "w").write("/* Fretty: restyles the renderer's own drawings. */\n")
 
 
 if __name__ == "__main__":

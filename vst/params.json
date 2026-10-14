@@ -295,6 +295,172 @@
       "momentary": true,
       "step_of": "theme",
       "step_delta": 1
+    },
+    {
+      "key": "instrument",
+      "name": "Instrument",
+      "options": [
+        "Acoustic",
+        "Electric",
+        "Folk Harp",
+        "Concert Harp",
+        "Strumstick"
+      ],
+      "default": "Acoustic"
+    },
+    {
+      "key": "instrument_prev",
+      "name": "Instrument Prev",
+      "momentary": true,
+      "step_of": "instrument",
+      "step_delta": -1
+    },
+    {
+      "key": "instrument_next",
+      "name": "Instrument Next",
+      "momentary": true,
+      "step_of": "instrument",
+      "step_delta": 1
+    },
+    {
+      "key": "drive",
+      "name": "Drive",
+      "min": 0,
+      "max": 1,
+      "default": 0.0,
+      "dynamic_display": true
+    },
+    {
+      "key": "chorus",
+      "name": "Chorus",
+      "min": 0,
+      "max": 1,
+      "default": 0.0,
+      "dynamic_display": true
+    },
+    {
+      "key": "a_on",
+      "name": "A Guitar",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": "On"
+    },
+    {
+      "key": "b_on",
+      "name": "B Synth",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": "Off"
+    },
+    {
+      "key": "a_level",
+      "name": "A Level",
+      "min": 0,
+      "max": 1,
+      "default": 0.8,
+      "dynamic_display": true
+    },
+    {
+      "key": "b_level",
+      "name": "B Level",
+      "min": 0,
+      "max": 1,
+      "default": 0.5,
+      "dynamic_display": true
+    },
+    {
+      "key": "wave",
+      "name": "Wave",
+      "options": [
+        "Sine",
+        "Triangle",
+        "Saw",
+        "Square"
+      ],
+      "default": "Saw"
+    },
+    {
+      "key": "wave_prev",
+      "name": "Wave Prev",
+      "momentary": true,
+      "step_of": "wave",
+      "step_delta": -1
+    },
+    {
+      "key": "wave_next",
+      "name": "Wave Next",
+      "momentary": true,
+      "step_of": "wave",
+      "step_delta": 1
+    },
+    {
+      "key": "octave",
+      "name": "Octave",
+      "min": -2,
+      "max": 2,
+      "default": 0,
+      "display": "int",
+      "dynamic_display": true
+    },
+    {
+      "key": "syn_detune",
+      "name": "Synth Detune",
+      "min": 0,
+      "max": 1,
+      "default": 0.15,
+      "dynamic_display": true
+    },
+    {
+      "key": "cutoff",
+      "name": "Cutoff",
+      "min": 0,
+      "max": 1,
+      "default": 0.6,
+      "dynamic_display": true
+    },
+    {
+      "key": "resonance",
+      "name": "Resonance",
+      "min": 0,
+      "max": 1,
+      "default": 0.15,
+      "dynamic_display": true
+    },
+    {
+      "key": "attack",
+      "name": "Attack",
+      "min": 0,
+      "max": 1,
+      "default": 0.02,
+      "dynamic_display": true
+    },
+    {
+      "key": "decay",
+      "name": "Decay",
+      "min": 0,
+      "max": 1,
+      "default": 0.4,
+      "dynamic_display": true
+    },
+    {
+      "key": "sustain",
+      "name": "Sustain",
+      "min": 0,
+      "max": 1,
+      "default": 0.6,
+      "dynamic_display": true
+    },
+    {
+      "key": "release",
+      "name": "Release",
+      "min": 0,
+      "max": 1,
+      "default": 0.3,
+      "dynamic_display": true
     }
   ]
 }

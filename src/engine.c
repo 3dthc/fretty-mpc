@@ -1,16 +1,20 @@
-/* Fretty: a sampled archtop guitar for MPC OS (mpc_engine, see mpc-vst-plugins wrapper/engine.h).
+/* Fretty: a sampled guitar (and friends) for MPC OS (mpc_engine, see mpc-vst-plugins wrapper/engine.h).
  *
- * Sound: Karoryfer's Shinyguitar (CC0), packed by tools/pack_samples.py into engine/fretty.smp:
- * each take is a stereo frame pair, L = magnetic pickup, R = microphone, so BLEND mixes them per sample.
- *
- * Memory: the essential sample set is stored losslessly compressed (~20 MB on disk) and decoded into RAM
- * on a loader thread when the plugin is first inserted (~70 MB, shared by every instance in the process).
+ * Layer A, the instrument: one of five sampled instruments (all CC0, tools/pack_samples.py, engine/<name>.smp):
+ * an archtop (Karoryfer Shinyguitar: each take is a pickup + mic pair, so BLEND mixes them per sample), an electric
+ * (Karoryfer Emilyguitar, mono), a folk harp, a concert harp and a strumstick (VCSL, stereo). Each sample file is
+ * losslessly compressed on disk and decoded into RAM the first time an instrument is used (shared by every instance).
  *
  * Playing model: six strings. Each note-on batch (a chord arrives in one block) is assigned to strings
  * (open strings, capo, drop tuning, a hand position that follows the music, or a fixed POSITION).
  * One sound per string: a new note on a string chokes the old one, or with LEGATO and the old key still
  * held, slurs into it (hammer-on / pull-off). STRUM spreads a chord low string to high.
- * ENGINE layers a plucked-string model (Karplus-Strong) on every note. SPACE is a small stereo reverb. */
+ * ENGINE layers a plucked-string model (Karplus-Strong) on every note.
+ *
+ * Layer B, the synth: every note also plays two detuned oscillators (sine, triangle, saw or square) through a
+ * resonant low-pass filter and an ADSR envelope. A and B switch on and off independently (solo either).
+ *
+ * Effects on the mix: DRIVE (an amp-style soft clipper), CHORUS, SPACE (reverb). Each is fully bypassed at zero. */
 #define _GNU_SOURCE
 #include <math.h>
 #include <pthread.h>
@@ -33,33 +37,37 @@
 
 enum { ZT_NOTE = 0, ZT_RELEASE = 1, ZT_NOISE = 2 };
 
-/* ---------- the shared sample bank ---------- */
+/* ---------- the shared sample banks: one per instrument, loaded on first use ---------- */
 typedef struct { uint32_t off, frames; } ent_t;
 typedef struct __attribute__((packed)) { uint8_t type, lo, hi, root, lv, hv, nrr, pad; uint16_t rr[MAX_RR]; } zone_t;
 
 enum { BANK_NONE, BANK_LOADING, BANK_READY, BANK_FAILED };
+enum { FLAG_DUAL = 1, FLAG_MONO = 2 };
+#define NINST 5
+static const char *INST_FILE[NINST] = { "acoustic", "electric", "folkharp", "concertharp", "strumstick" };
 
 typedef struct {
-    int refs, state, stop;
-    char path[1024];
+    int state, stop;
+    char path[1200];
     uint8_t *map; size_t maplen;
-    uint32_t nsamp, nzone;
+    uint32_t nsamp, nzone, flags;
+    float gain;
     const ent_t *ent; const zone_t *zone;
-    int16_t *head; uint32_t *hoff, *hlen;     /* all samples, decoded */
+    int16_t *head; uint32_t *hoff, *hlen;     /* all samples, decoded to interleaved stereo */
     pthread_t loader; int have_loader, own_tables;
 } bank_t;
 
-static bank_t g_bank;
+static bank_t g_banks[NINST];
+static int g_users;                 /* live instances in this process */
+static char g_data_dir[1024];
 static pthread_mutex_t g_bank_mx = PTHREAD_MUTEX_INITIALIZER;
 
-static int bank_state(void) { return __atomic_load_n(&g_bank.state, __ATOMIC_ACQUIRE); }
-
-
+static int bank_state_of(int i) { return __atomic_load_n(&g_banks[i].state, __ATOMIC_ACQUIRE); }
 
 /* ---------- sample file (written by tools/pack_samples.py) ----------
- * header: "ATSP", u32 version (2), u32 samples, u32 zones, u32 data offset
- * then per sample { u32 byte offset into data, u32 frames }, then the zones (zone_t), then the data.
- * Each sample: u32 len0, u32 len1, then two bitstreams (pickup, mic). A stream is 1024-frame blocks: a header byte
+ * header: "ATSP", u32 version (3), u32 samples, u32 zones, u32 data offset, u32 flags (1 = pickup + mic pair,
+ * 2 = mono), f32 level trim; then per sample { u32 byte offset into data, u32 frames }, then the zones (zone_t), then
+ * the data. Each sample: u32 len0, u32 len1, then one or two bitstreams (left/pickup, right/mic; mono has one). A stream is 1024-frame blocks: a header byte
  * (order << 5 | k), then one Rice code per frame (a run of q zeros, a 1, k low bits; 24 zeros = a raw 20-bit value)
  * of the zigzagged residual of a fixed order-0..3 predictor that runs across blocks. Lossless 16-bit. */
 typedef struct { const uint8_t *p; size_t n, pos; uint64_t cache; int avail; } br_t;
@@ -111,25 +119,27 @@ static int decode_channel(const uint8_t *src, size_t len, int16_t *dst, uint32_t
 }
 
 static void *loader_main(void *arg) {
-    (void)arg;
-    bank_t *b = &g_bank;
+    bank_t *b = arg;
     FILE *f = fopen(b->path, "rb");
     long size = 0;
-    if (!f || fseek(f, 0, SEEK_END) || (size = ftell(f)) < 20 || fseek(f, 0, SEEK_SET)) goto fail;
+    if (!f || fseek(f, 0, SEEK_END) || (size = ftell(f)) < 28 || fseek(f, 0, SEEK_SET)) goto fail;
     b->maplen = (size_t)size;
     b->map = malloc(b->maplen);
     if (!b->map || fread(b->map, 1, b->maplen, f) != b->maplen) goto fail;
     fclose(f); f = NULL;
     {
         const uint8_t *m = b->map;
-        uint32_t ver, ns, nz, doff;
+        uint32_t ver, ns, nz, doff, flags;
+        float gain;
         if (memcmp(m, "ATSP", 4)) goto fail;
         memcpy(&ver, m + 4, 4); memcpy(&ns, m + 8, 4); memcpy(&nz, m + 12, 4); memcpy(&doff, m + 16, 4);
-        size_t need = 20 + (size_t)ns * sizeof(ent_t) + (size_t)nz * sizeof(zone_t);
-        if (ver != 2 || ns == 0 || ns > 65535 || nz == 0 || nz > 1024 || doff != need || doff > b->maplen) goto fail;
-        b->nsamp = ns; b->nzone = nz;
-        b->ent = (const ent_t *)(m + 20);
-        b->zone = (const zone_t *)(m + 20 + ns * sizeof(ent_t));
+        memcpy(&flags, m + 20, 4); memcpy(&gain, m + 24, 4);
+        size_t need = 28 + (size_t)ns * sizeof(ent_t) + (size_t)nz * sizeof(zone_t);
+        if (ver != 3 || ns == 0 || ns > 65535 || nz == 0 || nz > 1024 || doff != need || doff > b->maplen) goto fail;
+        if (!(gain > 0.05f && gain < 20.0f)) gain = 1.0f;
+        b->nsamp = ns; b->nzone = nz; b->flags = flags; b->gain = gain;
+        b->ent = (const ent_t *)(m + 28);
+        b->zone = (const zone_t *)(m + 28 + ns * sizeof(ent_t));
         for (uint32_t z = 0; z < nz; z++)
             for (int k = 0; k < b->zone[z].nrr && k < MAX_RR; k++)
                 if (b->zone[z].rr[k] >= ns) goto fail;
@@ -149,8 +159,10 @@ static void *loader_main(void *arg) {
             memcpy(&l0, src, 4); memcpy(&l1, src + 4, 4);
             if ((size_t)b->ent[i].off + 8 + (size_t)l0 + l1 > dlen) goto fail;
             int16_t *dst = b->head + at * 2;
-            if (decode_channel(src + 8, l0, dst, b->ent[i].frames) ||
-                decode_channel(src + 8 + l0, l1, dst + 1, b->ent[i].frames)) goto fail;
+            if (decode_channel(src + 8, l0, dst, b->ent[i].frames)) goto fail;
+            if (b->flags & FLAG_MONO)
+                for (uint32_t k = 0; k < b->ent[i].frames; k++) dst[2 * (size_t)k + 1] = dst[2 * (size_t)k];
+            else if (decode_channel(src + 8 + l0, l1, dst + 1, b->ent[i].frames)) goto fail;
             b->hoff[i] = (uint32_t)at; b->hlen[i] = b->ent[i].frames;
             at += b->ent[i].frames;
         }
@@ -173,29 +185,39 @@ fail:
     return NULL;
 }
 
-static void bank_acquire(const char *data_dir) {
+static void banks_attach(const char *data_dir) {
     pthread_mutex_lock(&g_bank_mx);
-    if (g_bank.refs++ == 0) {
-        memset(&g_bank, 0, sizeof g_bank);
-        g_bank.refs = 1;
-        snprintf(g_bank.path, sizeof g_bank.path, "%s/fretty.smp", data_dir ? data_dir : ".");
-        g_bank.state = BANK_LOADING;
-        g_bank.have_loader = !pthread_create(&g_bank.loader, NULL, loader_main, NULL);
-        if (!g_bank.have_loader) g_bank.state = BANK_FAILED;
+    if (g_users++ == 0) snprintf(g_data_dir, sizeof g_data_dir, "%s", data_dir ? data_dir : ".");
+    pthread_mutex_unlock(&g_bank_mx);
+}
+
+/* Start loading an instrument's samples if nobody has yet (cheap to call every block). */
+static void bank_request(int i) {
+    if (i < 0 || i >= NINST || bank_state_of(i) != BANK_NONE) return;
+    pthread_mutex_lock(&g_bank_mx);
+    bank_t *b = &g_banks[i];
+    if (b->state == BANK_NONE) {
+        memset(b, 0, sizeof *b);
+        snprintf(b->path, sizeof b->path, "%s/%s.smp", g_data_dir, INST_FILE[i]);
+        b->state = BANK_LOADING;
+        b->have_loader = !pthread_create(&b->loader, NULL, loader_main, b);
+        if (!b->have_loader) b->state = BANK_FAILED;
     }
     pthread_mutex_unlock(&g_bank_mx);
 }
 
-static void bank_release(void) {
+static void banks_detach(void) {
     pthread_mutex_lock(&g_bank_mx);
-    if (--g_bank.refs == 0) {
-        g_bank.stop = 1;
-        if (g_bank.have_loader) pthread_join(g_bank.loader, NULL);
-        free(g_bank.map);
-        if (g_bank.own_tables) { free((void *)g_bank.ent); free((void *)g_bank.zone); }
-        free(g_bank.head); free(g_bank.hoff); free(g_bank.hlen);
-        memset(&g_bank, 0, sizeof g_bank);
-    }
+    if (--g_users == 0)
+        for (int i = 0; i < NINST; i++) {
+            bank_t *b = &g_banks[i];
+            b->stop = 1;
+            if (b->have_loader) pthread_join(b->loader, NULL);
+            free(b->map);
+            if (b->own_tables) { free((void *)b->ent); free((void *)b->zone); }
+            free(b->head); free(b->hoff); free(b->hlen);
+            memset(b, 0, sizeof *b);
+        }
     pthread_mutex_unlock(&g_bank_mx);
 }
 
@@ -207,17 +229,23 @@ static inline const int16_t *frame_ptr(const bank_t *b, uint32_t s, uint32_t i) 
 enum {
     P_BLEND, P_TONE, P_DAMP, P_VIBRATO, P_POSITION, P_CAPO, P_STRUM_SPEED, P_NOISE,
     P_ARTIC, P_LEGATO, P_STRUM, P_DROP, P_ENGINE,
-    P_ENG_MIX, P_ENG_COLOR, P_ENG_SUSTAIN, P_ENG_DETUNE, P_SPACE, P_VOLUME, P_THEME, NP
+    P_ENG_MIX, P_ENG_COLOR, P_ENG_SUSTAIN, P_ENG_DETUNE, P_SPACE, P_VOLUME, P_THEME,
+    P_INSTRUMENT, P_DRIVE, P_CHORUS, P_A_ON, P_B_ON, P_A_LEVEL, P_B_LEVEL,
+    P_WAVE, P_OCTAVE, P_SYN_DETUNE, P_CUTOFF, P_RESO, P_ATTACK, P_DECAY, P_SUSTAIN, P_RELEASE, NP
 };
 static const char *PKEY[NP] = {
     "blend", "tone", "damp", "vibrato", "position", "capo", "strum_speed", "noise",
     "artic", "legato", "strum", "drop", "engine",
-    "eng_mix", "eng_color", "eng_sustain", "eng_detune", "space", "volume", "theme"
+    "eng_mix", "eng_color", "eng_sustain", "eng_detune", "space", "volume", "theme",
+    "instrument", "drive", "chorus", "a_on", "b_on", "a_level", "b_level",
+    "wave", "octave", "syn_detune", "cutoff", "resonance", "attack", "decay", "sustain", "release"
 };
 static const float PDEF[NP] = {
     0.35f, 1.0f, 0.0f, 0.0f, 0, 0, 0.35f, 0.55f,
     0, 1, 1, 0, 0,
-    0.25f, 0.55f, 0.60f, 0.25f, 0.0f, 0.80f, 0
+    0.25f, 0.55f, 0.60f, 0.25f, 0.0f, 0.80f, 0,
+    0, 0, 0, 1, 0, 0.80f, 0.50f,
+    2, 0, 0.15f, 0.60f, 0.15f, 0.02f, 0.40f, 0.60f, 0.30f
 };
 static const int OPEN[NSTR] = { 40, 45, 50, 55, 59, 64 };
 static const char *NOTE_NAME[12] = { "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B" };
@@ -237,8 +265,11 @@ typedef struct {
     float denv, dk, hold;  /* damping: hold, then denv *= dk per frame */
     float rel, rel_k; int releasing;
     float fade, fade_step;
-    float lp, lp_k_scale;
-    int palm;
+    float lp, lpr, lp_k_scale;
+    int palm, bank;
+    /* synth layer */
+    int syn_on, syn_stage;          /* 0 attack, 1 decay/sustain, 2 release, 3 done */
+    float syn_env, syn_hz, syn_vel, ph1, ph2, ic1, ic2;
     /* plucked-string layer */
     float *ks; int ks_on, ks_w; float ks_prev, ks_gain, ks_level, ks_hz;
     float meter;           /* recent output peak, for the string picture */
@@ -261,9 +292,12 @@ typedef struct {
     /* reverb */
     float *rv; int rv_comb[8], rv_len_c[8], rv_ap[4], rv_len_a[4]; float rv_store[8];
     float rv_buf_total;
+    /* effects */
+    float drv_lp[2], drv_dc_x[2], drv_dc_y[2], drv_hp[2];
+    float *cho; int cho_w; float cho_ph;
     char chord[32];
     uint8_t disp_vib[NSTR], disp_fret[NSTR];   /* what the page's string pictures show (s<n>_vib / s<n>_fret) */
-    int rev, last_state;
+    int rev, last_state, cur_bank;
 } inst_t;
 
 static uint32_t rnd(inst_t *s) { s->rng ^= s->rng << 13; s->rng ^= s->rng >> 17; s->rng ^= s->rng << 5; return s->rng; }
@@ -378,7 +412,8 @@ static void voice_common(inst_t *s, voice_t *v, int kind, int str, int key, uint
 }
 
 static void start_release_noise(inst_t *s, const voice_t *nv) {
-    const bank_t *b = &g_bank;
+    const bank_t *b = &g_banks[nv->bank];
+    if (s->p[P_A_ON] < 0.5f) return;
     float amt = s->p[P_NOISE];
     if (amt < 0.01f) return;
     const zone_t *z = find_zone(b, ZT_RELEASE, nv->key, 64);
@@ -388,6 +423,7 @@ static void start_release_noise(inst_t *s, const voice_t *nv) {
     voice_t *v = alloc_voice(s);
     voice_common(s, v, VK_RELEASE, nv->str, nv->key, pick_rr(s, b, z), (float)(nv->key - z->root),
                  amt * amt * 0.9f * (level > 0.7f ? 1.0f : level / 0.7f));
+    v->bank = nv->bank;
     v->releasing = 1;                 /* a one-shot: never "held" */
 }
 
@@ -397,6 +433,7 @@ static void release_voice(inst_t *s, voice_t *v) {
     v->releasing = 1;
     float sec = v->palm ? 0.05f : 0.18f;
     v->rel_k = expf(-1.0f / (sec * SR));
+    if (v->syn_on && v->syn_stage < 2) v->syn_stage = 2;
     if (v->kind == VK_NOTE) start_release_noise(s, v);
 }
 
@@ -421,7 +458,7 @@ static void excite_ks(inst_t *s, voice_t *v, int key, int vel) {
 
 /* A string note: choke what the string was playing (or slur from it), then start the sample (+ the pluck). */
 static void start_note(inst_t *s, int key, int vel, int str, int fret, int delay, int allow_legato) {
-    const bank_t *b = &g_bank;
+    const bank_t *b = &g_banks[s->cur_bank];
     const zone_t *z = find_zone(b, ZT_NOTE, key, vel);
     if (!z) return;
     int legato = 0;
@@ -437,7 +474,14 @@ static void start_note(inst_t *s, int key, int vel, int str, int fret, int delay
     float g = 0.6f + 0.4f * (span > 0 ? (vel - z->lv) / span : 1.0f);
     if (vel < 40) g *= 0.25f + 0.75f * vel / 40.0f;      /* soft playing gets properly soft, not just the soft layer */
     voice_common(s, v, VK_NOTE, str, key, pick_rr(s, b, z), (float)(key - z->root), g);
+    v->bank = s->cur_bank;
     v->held = 1;
+    if (s->p[P_B_ON] > 0.5f) {         /* the synth layer plays the same note */
+        v->syn_on = 1; v->syn_stage = 0; v->syn_env = 0;
+        v->syn_hz = 440.0f * powf(2.0f, (key - 69) / 12.0f + lroundf(s->p[P_OCTAVE]));
+        v->syn_vel = 0.35f + 0.65f * vel / 127.0f;
+        v->ph1 = frnd(s); v->ph2 = frnd(s);
+    }
     v->delay = delay;
     int palm = s->p[P_ARTIC] > 0.5f;
     v->palm = palm;
@@ -462,11 +506,13 @@ static void start_note(inst_t *s, int key, int vel, int str, int fret, int delay
 }
 
 static void start_noise(inst_t *s, int key, int vel) {
-    const bank_t *b = &g_bank;
+    const bank_t *b = &g_banks[s->cur_bank];
+    if (s->p[P_A_ON] < 0.5f) return;
     const zone_t *z = find_zone(b, ZT_NOISE, key, vel);
     if (!z) return;
     voice_t *v = alloc_voice(s);
     voice_common(s, v, VK_NOISE, -1, key, pick_rr(s, b, z), 0, 0.3f + 0.7f * vel / 127.0f);
+    v->bank = s->cur_bank;
     v->releasing = 1;
     if (key >= 12 && key <= 17) pan_for(v, key - 12);
 }
@@ -557,21 +603,23 @@ static void *eng_create(const char *data_dir) {
     if (!s) return NULL;
     for (int i = 0; i < NP; i++) s->p[i] = PDEF[i];
     s->ksmem = calloc((size_t)MAX_V * KS_LEN, sizeof(float));
-    if (!s->ksmem || !reverb_init(s)) { free(s->ksmem); free(s->rv); free(s); return NULL; }
+    s->cho = calloc(2 * 2048, sizeof(float));
+    if (!s->ksmem || !s->cho || !reverb_init(s)) { free(s->ksmem); free(s->cho); free(s->rv); free(s); return NULL; }
     for (int i = 0; i < MAX_V; i++) s->v[i].ks = s->ksmem + (size_t)i * KS_LEN;
     for (int i = 0; i < NSTR; i++) { s->str_voice[i] = -1; s->str_key[i] = -1; s->str_fret[i] = -1; }
     s->hand = 2;
     s->rng = 0x9E3779B9u ^ (uint32_t)(uintptr_t)s;
     s->last_state = -1;
     snprintf(s->chord, sizeof s->chord, "-");
-    bank_acquire(data_dir);
+    banks_attach(data_dir);
+    bank_request(0);
     return s;
 }
 
 static void eng_destroy(void *inst) {
     inst_t *s = inst;
-    bank_release();
-    free(s->ksmem); free(s->rv); free(s);
+    banks_detach();
+    free(s->ksmem); free(s->cho); free(s->rv); free(s);
 }
 
 static void eng_midi(void *inst, const uint8_t *msg, int len) {
@@ -610,6 +658,12 @@ static int fmt_display(inst_t *s, int i, char *buf, int n) {
     case P_ENG_COLOR: return snprintf(buf, n, "%.1f kHz", 0.4f + 7.6f * v);
     case P_ENG_DETUNE: return snprintf(buf, n, "+%d ct", (int)lroundf(v * 30));
     case P_VOLUME: return v < 0.001f ? snprintf(buf, n, "-inf dB") : snprintf(buf, n, "%.1f dB", 20 * log10f(v / 0.9f));
+    case P_OCTAVE: { int k = (int)lroundf(v); return snprintf(buf, n, k > 0 ? "+%d OCT" : k < 0 ? "%d OCT" : "0 OCT", k); }
+    case P_SYN_DETUNE: return snprintf(buf, n, "%d ct", (int)lroundf(v * 50));
+    case P_CUTOFF: { float hz = 30.0f * powf(2.0f, v * 9.3f); return hz >= 1000 ? snprintf(buf, n, "%.1f kHz", hz / 1000) : snprintf(buf, n, "%d Hz", (int)hz); }
+    case P_ATTACK: case P_DECAY: case P_RELEASE: {
+        float t = 0.001f * powf(4000.0f, v);
+        return t >= 1 ? snprintf(buf, n, "%.2f s", t) : snprintf(buf, n, "%d ms", (int)lroundf(t * 1000)); }
     default: return snprintf(buf, n, "%d%%", (int)lroundf(v * 100));
     }
 }
@@ -617,7 +671,7 @@ static int fmt_display(inst_t *s, int i, char *buf, int n) {
 static int eng_get_param(void *inst, const char *key, char *buf, int n) {
     inst_t *s = inst;
     if (n <= 0) return 0;
-    int st = bank_state();
+    int st = bank_state_of(s->cur_bank);
     if (st != s->last_state) { s->last_state = st; s->rev++; }
     if (!strcmp(key, "display_rev")) return snprintf(buf, n, "%d", s->rev);
     if (!strcmp(key, "status"))
@@ -651,7 +705,7 @@ static void all_off(inst_t *s, int hard) {
 
 static void handle_events(inst_t *s) {
     pend_t pd[NSTR * 4];
-    int np = 0, ready = bank_state() == BANK_READY;
+    int np = 0, ready = bank_state_of(s->cur_bank) == BANK_READY;
     for (int e = 0; e < s->nev; e++) {
         uint8_t st = s->ev[e].st & 0xF0, d1 = s->ev[e].d1 & 0x7F, d2 = s->ev[e].d2 & 0x7F;
         if (st == 0x90 && d2 > 0) {
@@ -688,14 +742,36 @@ static inline float hermite(float xm1, float x0, float x1, float x2, float t) {
     return ((((a * t) - bn) * t + c) * t + x0);
 }
 
+/* PolyBLEP: removes the aliasing step at a waveform's jump (t = phase, dt = phase step). */
+static inline float blep(float t, float dt) {
+    if (t < dt) { t /= dt; return t + t - t * t - 1.0f; }
+    if (t > 1.0f - dt) { t = (t - 1.0f) / dt; return t * t + t + t + 1.0f; }
+    return 0.0f;
+}
+static inline float osc(int wave, float ph, float dt) {
+    switch (wave) {
+    case 0: return sinf(2 * PI_F * ph);
+    case 1: return 4.0f * fabsf(ph - 0.5f) - 1.0f;
+    case 2: return 2.0f * ph - 1.0f - blep(ph, dt);
+    default: {
+        float q = ph < 0.5f ? 1.0f : -1.0f;
+        float p2 = ph + 0.5f; if (p2 >= 1.0f) p2 -= 1.0f;
+        return q + blep(ph, dt) - blep(p2, dt);
+    }
+    }
+}
+
 static void eng_render(void *inst, int16_t *out, int frames) {
     inst_t *s = inst;
+    int want = (int)lroundf(s->p[P_INSTRUMENT]);
+    if (want < 0) want = 0;
+    if (want >= NINST) want = NINST - 1;
+    if (want != s->cur_bank) { s->cur_bank = want; s->rev++; }
+    bank_request(s->cur_bank);
     handle_events(s);
-    float mixL[128], mixR[128], send[128];
+    float mixL[128], mixR[128];
     if (frames > 128) frames = 128;
-    memset(mixL, 0, sizeof mixL); memset(mixR, 0, sizeof mixR); memset(send, 0, sizeof send);
-    const bank_t *b = &g_bank;
-    int ready = bank_state() == BANK_READY;
+    memset(mixL, 0, sizeof mixL); memset(mixR, 0, sizeof mixR);
 
     float blend = s->p[P_BLEND];
     float tone_hz = 600.0f * powf(2.0f, s->p[P_TONE] * 5.0f);
@@ -707,11 +783,31 @@ static void eng_render(void *inst, int16_t *out, int frames) {
     float eng_on = s->p[P_ENGINE] > 0.5f, eng_mix = s->p[P_ENG_MIX];
     float ks_fb = 0.94f + 0.0595f * sqrtf(s->p[P_ENG_SUSTAIN]);
     float ks_c = 0.15f + 0.8f * s->p[P_ENG_COLOR];
+    int a_on = s->p[P_A_ON] > 0.5f;
+    float a_gain = s->p[P_A_LEVEL] / 0.8f;
+    /* synth settings for this block */
+    int wave = (int)lroundf(s->p[P_WAVE]); if (wave < 0) wave = 0; if (wave > 3) wave = 3;
+    float b_gain = s->p[P_B_LEVEL] * 0.45f;
+    float det = s->p[P_SYN_DETUNE] * 50.0f / 1200.0f;            /* octaves, split between the two oscillators */
+    float d_up = powf(2.0f, det * 0.5f), d_dn = 1.0f / d_up;
+    float cut0 = 30.0f * powf(2.0f, s->p[P_CUTOFF] * 9.3f);
+    float kres = 2.0f - 1.9f * s->p[P_RESO];                      /* SVF damping: 2 = no peak, 0.1 = ringing */
+    float t_att = 0.001f * powf(4000.0f, s->p[P_ATTACK]);
+    float t_dec = 0.001f * powf(4000.0f, s->p[P_DECAY]);
+    float t_rel = 0.001f * powf(4000.0f, s->p[P_RELEASE]);
+    float sus = s->p[P_SUSTAIN];
+    float att_step = 1.0f / (t_att * SR);
+    float dec_k = expf(-1.0f / (t_dec * SR)), rel_k = expf(-1.0f / (t_rel * SR));
 
-    for (int vi = 0; vi < MAX_V && ready; vi++) {
+    for (int vi = 0; vi < MAX_V; vi++) {
         voice_t *v = &s->v[vi];
         if (!v->on) continue;
+        const bank_t *b = &g_banks[v->bank];
+        int bank_ok = bank_state_of(v->bank) == BANK_READY;
+        if (!bank_ok) { v->on = 0; continue; }
         const ent_t *e = &b->ent[v->samp];
+        int dual = b->flags & FLAG_DUAL, stereo = !(b->flags & (FLAG_DUAL | FLAG_MONO));
+        float bgain = b->gain * a_gain;
         float vib = 0;
         if (v->kind == VK_NOTE && vib_depth > 0) {
             float fin = (v->t - 0.25f) / 0.5f;
@@ -719,18 +815,32 @@ static void eng_render(void *inst, int16_t *out, int frames) {
             vib = vib_depth * fin * vib_sin;
         }
         float bend = v->kind == VK_NOTE ? s->bend : 0;
-        double rate = pow(2.0, (v->semis + bend + vib) / 12.0);
+        float pitch_mul = powf(2.0f, (bend + vib) / 12.0f);
+        double rate = pow(2.0, v->semis / 12.0) * pitch_mul;
         float lpk = (tone_open && v->lp_k_scale >= 1.0f) ? 1.0f
                   : 1.0f - expf(-2 * PI_F * fminf(tone_hz * v->lp_k_scale, 18000.0f) / SR);
         float ks_len = 0;
-        int use_ks = v->ks_on && eng_on;
+        int use_ks = v->ks_on && eng_on && a_on;
         if (use_ks) {
-            ks_len = SR / (v->ks_hz * powf(2.0f, (bend + vib) / 12.0f));
+            ks_len = SR / (v->ks_hz * pitch_mul);
             if (ks_len > KS_LEN - 4) ks_len = KS_LEN - 4;
         }
         float vfb = ks_fb * (v->releasing ? 0.995f : 1.0f);
         if (v->palm) vfb *= 0.985f;
         float ks_amp = eng_mix * 1.0f * v->ks_gain;
+        /* synth: per-block filter coefficients (cutoff follows the key by half) */
+        int syn = v->syn_on && v->syn_stage < 3;
+        float g_svf = 0, a1 = 0, a2 = 0, a3 = 0, dt1 = 0, dt2 = 0;
+        if (syn) {
+            float fc = cut0 * powf(2.0f, (v->key - 60) / 24.0f);
+            if (fc > 18000.0f) fc = 18000.0f;
+            g_svf = tanf(PI_F * fc / SR);
+            a1 = 1.0f / (1.0f + g_svf * (g_svf + kres)); a2 = g_svf * a1; a3 = g_svf * a2;
+            float hz = v->syn_hz * pitch_mul;
+            dt1 = hz * d_up / SR; dt2 = hz * d_dn / SR;
+            if (dt1 > 0.45f) dt1 = 0.45f;
+            if (dt2 > 0.45f) dt2 = 0.45f;
+        }
         float ks_peak = 0, out_peak = 0;
         int start = 0;
         if (v->delay > 0) {
@@ -744,51 +854,73 @@ static void eng_render(void *inst, int16_t *out, int frames) {
             v->rel *= v->rel_k;
             if (v->fade_step > 0) { v->fade -= v->fade_step; if (v->fade <= 0) { v->fade = 0; } }
             float env = v->att * v->denv * v->rel * v->fade;
-            float smp = 0;
+            float xl = 0, xr = 0;
             if (!v->samp_done) {
                 uint32_t ip = (uint32_t)v->pos;
                 if (ip + 3 >= e->frames) v->samp_done = 1;
-                else {
+                else if (a_on) {
                     float t = (float)(v->pos - ip);
                     const int16_t *p0 = frame_ptr(b, v->samp, ip ? ip - 1 : 0), *p1 = frame_ptr(b, v->samp, ip),
                                   *p2 = frame_ptr(b, v->samp, ip + 1), *p3 = frame_ptr(b, v->samp, ip + 2);
-                    float m0 = p0[0] + (p0[1] - p0[0]) * blend, m1 = p1[0] + (p1[1] - p1[0]) * blend;
-                    float m2 = p2[0] + (p2[1] - p2[0]) * blend, m3 = p3[0] + (p3[1] - p3[0]) * blend;
-                    smp = hermite(m0, m1, m2, m3, t) * (1.0f / 32768.0f);
+                    if (stereo) {
+                        xl = hermite(p0[0], p1[0], p2[0], p3[0], t) * (1.0f / 32768.0f);
+                        xr = hermite(p0[1], p1[1], p2[1], p3[1], t) * (1.0f / 32768.0f);
+                    } else {
+                        float bl = dual ? blend : 0.0f;
+                        float m0 = p0[0] + (p0[1] - p0[0]) * bl, m1 = p1[0] + (p1[1] - p1[0]) * bl;
+                        float m2 = p2[0] + (p2[1] - p2[0]) * bl, m3 = p3[0] + (p3[1] - p3[0]) * bl;
+                        xl = hermite(m0, m1, m2, m3, t) * (1.0f / 32768.0f);
+                    }
                     v->pos += rate;
-                }
+                } else v->pos += rate;
             }
-            v->lp += lpk * (smp - v->lp);
-            float x = v->lp * v->gain * env;
+            v->lp += lpk * (xl - v->lp);
+            float x = v->lp * v->gain * bgain * env, y = 0;
+            if (stereo) { v->lpr += lpk * (xr - v->lpr); y = v->lpr * v->gain * bgain * env; }
             if (use_ks) {
                 float rp = (float)v->ks_w - ks_len;
                 while (rp < 0) rp += KS_LEN;
                 int r0 = (int)rp;
                 float fr = rp - r0;
-                float y = v->ks[r0 & KS_MASK] + (v->ks[(r0 + 1) & KS_MASK] - v->ks[r0 & KS_MASK]) * fr;
-                v->ks_prev += ks_c * (y - v->ks_prev);
+                float yy = v->ks[r0 & KS_MASK] + (v->ks[(r0 + 1) & KS_MASK] - v->ks[r0 & KS_MASK]) * fr;
+                v->ks_prev += ks_c * (yy - v->ks_prev);
                 float o = v->ks_prev * vfb;
                 v->ks[v->ks_w & KS_MASK] = o;
                 v->ks_w = (v->ks_w + 1) & KS_MASK;
                 float ke = v->att * v->rel * v->fade * (v->palm ? v->denv : 1.0f);
-                float ko = o * ks_amp * ke;
-                x += ko;
+                float ko = o * ks_amp * ke * a_gain;
+                x += ko; if (stereo) y += ko;
                 float ab = ko < 0 ? -ko : ko;
                 if (ab > ks_peak) ks_peak = ab;
             }
-            float ax = x < 0 ? -x : x;
+            float sy = 0;
+            if (syn) {
+                /* ADSR */
+                if (v->syn_stage == 0) { v->syn_env += att_step; if (v->syn_env >= 1) { v->syn_env = 1; v->syn_stage = 1; } }
+                else if (v->syn_stage == 1) v->syn_env = sus + (v->syn_env - sus) * dec_k;
+                else if (v->syn_stage == 2) { v->syn_env *= rel_k; if (v->syn_env < 1e-4f) { v->syn_env = 0; v->syn_stage = 3; } }
+                float o = 0.5f * (osc(wave, v->ph1, dt1) + osc(wave, v->ph2, dt2));
+                v->ph1 += dt1; if (v->ph1 >= 1) v->ph1 -= 1;
+                v->ph2 += dt2; if (v->ph2 >= 1) v->ph2 -= 1;
+                /* TPT state-variable low-pass */
+                float v3 = o - v->ic2, v1 = a1 * v->ic1 + a2 * v3, v2 = v->ic2 + a2 * v->ic1 + a3 * v3;
+                v->ic1 = 2 * v1 - v->ic1; v->ic2 = 2 * v2 - v->ic2;
+                sy = v2 * v->syn_env * v->syn_vel * b_gain * v->fade;
+            }
+            float ax = (x < 0 ? -x : x) + (sy < 0 ? -sy : sy);
             if (ax > out_peak) out_peak = ax;
-            mixL[i] += x * v->pl;
-            mixR[i] += x * v->pr;
+            if (stereo) { mixL[i] += (x + sy) * v->pl; mixR[i] += (y + sy) * v->pr; }   /* same power as the centred mono path */
+            else { mixL[i] += (x + sy) * v->pl; mixR[i] += (x + sy) * v->pr; }
         }
         v->t += (frames - start) / SR;
         v->meter = out_peak > v->meter * 0.97f ? out_peak : v->meter * 0.97f;
         if (use_ks) { v->ks_level = ks_peak; if (ks_peak < 1e-4f && v->t > 0.2f) v->ks_on = 0; }
-        /* a voice ends when both its sample and its pluck layer are spent */
+        /* a voice ends when its sample, its pluck layer and its synth are all spent */
         if (v->delay == 0 && v->att >= 1) {
             int ks_alive = use_ks && v->ks_on && v->rel * v->fade * (v->palm ? v->denv : 1.0f) > 1e-4f;
-            int smp_alive = !v->samp_done && v->denv * v->rel * v->fade > 1e-4f;
-            if (v->fade <= 0 || (!ks_alive && !smp_alive)) {
+            int smp_alive = a_on && !v->samp_done && v->denv * v->rel * v->fade > 1e-4f;
+            int syn_alive = v->syn_on && v->syn_stage < 3;
+            if (v->fade <= 0 || (!ks_alive && !smp_alive && !syn_alive)) {
                 v->on = 0;
                 for (int k = 0; k < NSTR; k++) if (s->str_voice[k] == vi) s->str_voice[k] = -1;
             }
@@ -806,14 +938,48 @@ static void eng_render(void *inst, int16_t *out, int frames) {
         if (vib != s->disp_vib[st] || fret != s->disp_fret[st]) { s->disp_vib[st] = (uint8_t)vib; s->disp_fret[st] = (uint8_t)fret; s->rev++; }
     }
 
+    /* ---- effects: drive -> chorus -> space -> volume -> soft limit ---- */
+    float drive = s->p[P_DRIVE], chorus = s->p[P_CHORUS];
     float space = s->p[P_SPACE];
     float vol = s->p[P_VOLUME] / 0.9f;
     float dry = (1.0f - 0.35f * space) * vol, wet = space * vol * 0.9f;
+    float pre = 1.0f + 30.0f * drive * drive, bias = 0.15f * drive, tb = tanhf(bias);
+    float comp = 0.35f / tanhf(0.35f * pre) / (1.0f + 3.0f * drive);            /* clipping raises the average: keep it even */
+    float cab_k = 1.0f - expf(-2 * PI_F * (9000.0f - 5500.0f * drive) / SR);      /* speaker-ish top end */
+    float hp_k = 1.0f - expf(-2 * PI_F * 90.0f / SR);                            /* tighten the lows before clipping */
+    float cho_rate = 2 * PI_F * 0.8f / SR, cho_depth = 0.0035f * SR * chorus, cho_base = 0.012f * SR;
     for (int i = 0; i < frames; i++) {
-        float l = mixL[i], r = mixR[i];
+        float ch[2] = { mixL[i], mixR[i] };
+        if (drive > 0.001f)
+            for (int c = 0; c < 2; c++) {
+                float xin = ch[c];
+                s->drv_hp[c] += hp_k * (xin - s->drv_hp[c]);
+                float xh = xin - s->drv_hp[c] * (0.6f * drive);
+                float yv = (tanhf(xh * pre + bias) - tb) * comp;
+                s->drv_lp[c] += cab_k * (yv - s->drv_lp[c]);
+                /* DC blocker: the bias makes the clipper slightly asymmetric */
+                float o = s->drv_lp[c] - s->drv_dc_x[c] + 0.995f * s->drv_dc_y[c];
+                s->drv_dc_x[c] = s->drv_lp[c]; s->drv_dc_y[c] = o;
+                ch[c] = o;
+            }
+        if (chorus > 0.001f) {
+            s->cho_ph += cho_rate; if (s->cho_ph > 2 * PI_F) s->cho_ph -= 2 * PI_F;
+            int w = s->cho_w;
+            s->cho[w] = ch[0]; s->cho[2048 + w] = ch[1];
+            for (int c = 0; c < 2; c++) {
+                float d = cho_base + cho_depth * (1.0f + (c ? cosf(s->cho_ph) : sinf(s->cho_ph)));
+                float rp = (float)w - d;
+                while (rp < 0) rp += 2048;
+                int r0 = (int)rp; float fr = rp - r0;
+                const float *buf = s->cho + c * 2048;
+                float dl = buf[r0 & 2047] + (buf[(r0 + 1) & 2047] - buf[r0 & 2047]) * fr;
+                ch[c] = ch[c] * (1.0f - 0.3f * chorus) + dl * 0.75f * chorus;
+            }
+            s->cho_w = (w + 1) & 2047;
+        }
         float rl = 0, rr = 0;
-        if (space > 0.001f) reverb_frame(s, (l + r) * 0.03f, &rl, &rr);
-        float ol = l * dry + rl * wet, orr = r * dry + rr * wet;
+        if (space > 0.001f) reverb_frame(s, (ch[0] + ch[1]) * 0.03f, &rl, &rr);
+        float ol = ch[0] * dry + rl * wet, orr = ch[1] * dry + rr * wet;
         /* soft limit above -2 dBFS */
         if (ol > 0.8f) ol = 0.8f + 0.2f * tanhf((ol - 0.8f) * 5.0f);
         else if (ol < -0.8f) ol = -0.8f + 0.2f * tanhf((ol + 0.8f) * 5.0f);
@@ -828,5 +994,6 @@ static const mpc_engine_t ENGINE = { eng_create, eng_destroy, eng_midi, eng_set_
 
 const mpc_engine_t *mpc_engine(void) { return &ENGINE; }
 
-/* For the offline demo renderer (tools/render_demo.c): wait until the bank is ready. */
-int fretty_bank_state(void) { return bank_state(); }
+/* For the offline tools (tools/render_demo.c): an instrument's load state (2 = ready). */
+int fretty_bank_state(void) { return bank_state_of(0); }
+int fretty_bank_state_of(int i) { return i >= 0 && i < NINST ? bank_state_of(i) : -1; }
