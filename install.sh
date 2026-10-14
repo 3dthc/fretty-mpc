@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Fretty: one-step install, from the downloaded zips to a zip ready for the MPC.
 #
-#   python3 -m zipfile -e /mnt/c/Users/*/Downloads/fretty-mpc-v0.4.0.zip ~/ && bash ~/fretty-mpc/install.sh
+#   python3 -m zipfile -e /mnt/c/Users/*/Downloads/fretty-mpc-v0.5.0.zip ~/ && bash ~/fretty-mpc/install.sh
 #
 # What it does:
 #   1. finds the fretty-instruments-*-v<version>.zip files in your Windows Downloads (or ~) and adds their instruments
@@ -12,8 +12,8 @@
 # Safe to run again: each step skips what is already done.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-VERSION="0.4.0"
-INSTRUMENTS="acoustic electric folkharp concertharp strumstick violin"
+VERSION="0.5.0"
+INSTRUMENTS="acoustic electric folkharp concertharp strumstick violin dantranh psaltery"
 MPC_VST="${MPC_VST:-$HERE/../mpc-vst-plugins}"
 step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 fail() { printf '\n\033[31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -46,7 +46,7 @@ fi
 m="$(missing)"
 [ -z "$m" ] || fail "still missing in engine/:$m
        Download every fretty-instruments-*-v$VERSION.zip into the same folder and run this again."
-echo "all 6 instrument files present"
+echo "all $(echo $INSTRUMENTS | wc -w) instrument files present"
 
 # ---- 2. tools
 step "2/4  Checking tools"

@@ -40,7 +40,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -83,7 +84,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -126,7 +128,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -169,7 +172,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -212,7 +216,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -255,7 +260,8 @@
     "a_release": 0.45,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -298,7 +304,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -341,7 +348,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -384,7 +392,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -427,7 +436,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -470,7 +480,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -513,7 +524,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -556,7 +568,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -599,7 +612,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -642,7 +656,8 @@
     "a_release": 0.6,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -685,7 +700,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -728,7 +744,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -771,7 +788,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -814,7 +832,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -857,7 +876,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -900,7 +920,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -943,7 +964,404 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
+   }
+  },
+  {
+   "name": "Dan Tranh",
+   "values": {
+    "instrument": "Dan Tranh",
+    "blend": 0.35,
+    "tone": 1.0,
+    "damp": 0.0,
+    "vibrato": 0.0,
+    "position": 0,
+    "capo": 0,
+    "strum_speed": 0.6,
+    "noise": 0.55,
+    "artic": "Sustain",
+    "legato": "On",
+    "drop": "Off",
+    "eng_mix": 0,
+    "eng_color": 0.55,
+    "eng_sustain": 0.6,
+    "eng_detune": 0.25,
+    "space": 0.3,
+    "volume": 0.8,
+    "drive": 0.0,
+    "chorus": 0.0,
+    "a_on": "On",
+    "b_on": "Off",
+    "wave": "Saw",
+    "octave": 0,
+    "syn_detune": 0.15,
+    "cutoff": 0.6,
+    "resonance": 0.15,
+    "attack": 0.02,
+    "decay": 0.4,
+    "sustain": 0.6,
+    "release": 0.3,
+    "strum_mode": "Strum Down",
+    "mix": 0.5,
+    "a_attack": 0,
+    "a_release": 0,
+    "a_vel": 1.0,
+    "b_vel": 0.65,
+    "b_fenv": 0,
+    "glide": 0
+   }
+  },
+  {
+   "name": "Dan Tranh Bends",
+   "values": {
+    "instrument": "Dan Tranh",
+    "blend": 0.35,
+    "tone": 1.0,
+    "damp": 0.0,
+    "vibrato": 0.2,
+    "position": 0,
+    "capo": 0,
+    "strum_speed": 0.35,
+    "noise": 0.55,
+    "artic": "Sustain",
+    "legato": "On",
+    "drop": "Off",
+    "eng_mix": 0,
+    "eng_color": 0.55,
+    "eng_sustain": 0.6,
+    "eng_detune": 0.25,
+    "space": 0.3,
+    "volume": 0.8,
+    "drive": 0.0,
+    "chorus": 0.0,
+    "a_on": "On",
+    "b_on": "Off",
+    "wave": "Saw",
+    "octave": 0,
+    "syn_detune": 0.15,
+    "cutoff": 0.6,
+    "resonance": 0.15,
+    "attack": 0.02,
+    "decay": 0.4,
+    "sustain": 0.6,
+    "release": 0.3,
+    "strum_mode": "Strum Off",
+    "mix": 0.5,
+    "a_attack": 0,
+    "a_release": 0,
+    "a_vel": 1.0,
+    "b_vel": 0.65,
+    "b_fenv": 0,
+    "glide": 0.4
+   }
+  },
+  {
+   "name": "Psaltery",
+   "values": {
+    "instrument": "Psaltery",
+    "blend": 0.35,
+    "tone": 1.0,
+    "damp": 0.0,
+    "vibrato": 0.0,
+    "position": 0,
+    "capo": 0,
+    "strum_speed": 0.5,
+    "noise": 0.55,
+    "artic": "Sustain",
+    "legato": "On",
+    "drop": "Off",
+    "eng_mix": 0,
+    "eng_color": 0.55,
+    "eng_sustain": 0.6,
+    "eng_detune": 0.25,
+    "space": 0.35,
+    "volume": 0.8,
+    "drive": 0.0,
+    "chorus": 0.0,
+    "a_on": "On",
+    "b_on": "Off",
+    "wave": "Saw",
+    "octave": 0,
+    "syn_detune": 0.15,
+    "cutoff": 0.6,
+    "resonance": 0.15,
+    "attack": 0.02,
+    "decay": 0.4,
+    "sustain": 0.6,
+    "release": 0.3,
+    "strum_mode": "Strum Down",
+    "mix": 0.5,
+    "a_attack": 0,
+    "a_release": 0,
+    "a_vel": 1.0,
+    "b_vel": 0.65,
+    "b_fenv": 0,
+    "glide": 0
+   }
+  },
+  {
+   "name": "Bowed Psaltery",
+   "values": {
+    "instrument": "Bowed Psaltery",
+    "blend": 0.35,
+    "tone": 1.0,
+    "damp": 0.0,
+    "vibrato": 0.0,
+    "position": 0,
+    "capo": 0,
+    "strum_speed": 0.35,
+    "noise": 0.55,
+    "artic": "Sustain",
+    "legato": "On",
+    "drop": "Off",
+    "eng_mix": 0,
+    "eng_color": 0.55,
+    "eng_sustain": 0.6,
+    "eng_detune": 0.25,
+    "space": 0.5,
+    "volume": 0.8,
+    "drive": 0.0,
+    "chorus": 0.0,
+    "a_on": "On",
+    "b_on": "Off",
+    "wave": "Saw",
+    "octave": 0,
+    "syn_detune": 0.15,
+    "cutoff": 0.6,
+    "resonance": 0.15,
+    "attack": 0.02,
+    "decay": 0.4,
+    "sustain": 0.6,
+    "release": 0.3,
+    "strum_mode": "Strum Off",
+    "mix": 0.5,
+    "a_attack": 0,
+    "a_release": 0,
+    "a_vel": 1.0,
+    "b_vel": 0.65,
+    "b_fenv": 0,
+    "glide": 0
+   }
+  },
+  {
+   "name": "Hammered Dulcimer",
+   "values": {
+    "instrument": "Dan Tranh",
+    "blend": 0.35,
+    "tone": 1.0,
+    "damp": 0.0,
+    "vibrato": 0.0,
+    "position": 0,
+    "capo": 0,
+    "strum_speed": 0.2,
+    "noise": 0.55,
+    "artic": "Sustain",
+    "legato": "On",
+    "drop": "Off",
+    "eng_mix": 0.4,
+    "eng_color": 0.95,
+    "eng_sustain": 0.8,
+    "eng_detune": 0.35,
+    "space": 0.3,
+    "volume": 0.8,
+    "drive": 0.0,
+    "chorus": 0.15,
+    "a_on": "On",
+    "b_on": "Off",
+    "wave": "Saw",
+    "octave": 0,
+    "syn_detune": 0.15,
+    "cutoff": 0.6,
+    "resonance": 0.15,
+    "attack": 0.02,
+    "decay": 0.4,
+    "sustain": 0.6,
+    "release": 0.3,
+    "strum_mode": "Strum Alt",
+    "mix": 0.5,
+    "a_attack": 0,
+    "a_release": 0,
+    "a_vel": 1.0,
+    "b_vel": 0.65,
+    "b_fenv": 0,
+    "glide": 0
+   }
+  },
+  {
+   "name": "Mountain Dulcimer",
+   "values": {
+    "instrument": "Strumstick",
+    "blend": 0.35,
+    "tone": 0.95,
+    "damp": 0.0,
+    "vibrato": 0.0,
+    "position": 0,
+    "capo": 0,
+    "strum_speed": 0.3,
+    "noise": 0.3,
+    "artic": "Sustain",
+    "legato": "On",
+    "drop": "Off",
+    "eng_mix": 0.15,
+    "eng_color": 0.7,
+    "eng_sustain": 0.7,
+    "eng_detune": 0.25,
+    "space": 0.15,
+    "volume": 0.8,
+    "drive": 0.0,
+    "chorus": 0.0,
+    "a_on": "On",
+    "b_on": "Off",
+    "wave": "Saw",
+    "octave": 0,
+    "syn_detune": 0.15,
+    "cutoff": 0.6,
+    "resonance": 0.15,
+    "attack": 0.02,
+    "decay": 0.4,
+    "sustain": 0.6,
+    "release": 0.3,
+    "strum_mode": "Strum Alt",
+    "mix": 0.5,
+    "a_attack": 0,
+    "a_release": 0,
+    "a_vel": 1.0,
+    "b_vel": 0.65,
+    "b_fenv": 0,
+    "glide": 0
+   }
+  },
+  {
+   "name": "Lap Steel",
+   "values": {
+    "instrument": "Electric",
+    "blend": 0.35,
+    "tone": 0.85,
+    "damp": 0.0,
+    "vibrato": 0.25,
+    "position": 0,
+    "capo": 0,
+    "strum_speed": 0.35,
+    "noise": 0.55,
+    "artic": "Sustain",
+    "legato": "On",
+    "drop": "Off",
+    "eng_mix": 0,
+    "eng_color": 0.55,
+    "eng_sustain": 0.6,
+    "eng_detune": 0.25,
+    "space": 0.35,
+    "volume": 0.8,
+    "drive": 0.0,
+    "chorus": 0.15,
+    "a_on": "On",
+    "b_on": "Off",
+    "wave": "Saw",
+    "octave": 0,
+    "syn_detune": 0.15,
+    "cutoff": 0.6,
+    "resonance": 0.15,
+    "attack": 0.02,
+    "decay": 0.4,
+    "sustain": 0.6,
+    "release": 0.3,
+    "strum_mode": "Strum Off",
+    "mix": 0.5,
+    "a_attack": 0.12,
+    "a_release": 0,
+    "a_vel": 1.0,
+    "b_vel": 0.65,
+    "b_fenv": 0,
+    "glide": 0.4
+   }
+  },
+  {
+   "name": "Pedal Steel Swells",
+   "values": {
+    "instrument": "Electric",
+    "blend": 0.35,
+    "tone": 1.0,
+    "damp": 0.0,
+    "vibrato": 0.15,
+    "position": 0,
+    "capo": 0,
+    "strum_speed": 0.35,
+    "noise": 0.55,
+    "artic": "Sustain",
+    "legato": "On",
+    "drop": "Off",
+    "eng_mix": 0,
+    "eng_color": 0.55,
+    "eng_sustain": 0.6,
+    "eng_detune": 0.25,
+    "space": 0.55,
+    "volume": 0.8,
+    "drive": 0.0,
+    "chorus": 0.3,
+    "a_on": "On",
+    "b_on": "Off",
+    "wave": "Saw",
+    "octave": 0,
+    "syn_detune": 0.15,
+    "cutoff": 0.6,
+    "resonance": 0.15,
+    "attack": 0.02,
+    "decay": 0.4,
+    "sustain": 0.6,
+    "release": 0.3,
+    "strum_mode": "Strum Off",
+    "mix": 0.5,
+    "a_attack": 0.5,
+    "a_release": 0.5,
+    "a_vel": 1.0,
+    "b_vel": 0.65,
+    "b_fenv": 0,
+    "glide": 0.3
+   }
+  },
+  {
+   "name": "Dobro Slide",
+   "values": {
+    "instrument": "Acoustic",
+    "blend": 0.8,
+    "tone": 1.0,
+    "damp": 0.0,
+    "vibrato": 0.3,
+    "position": 0,
+    "capo": 0,
+    "strum_speed": 0.35,
+    "noise": 0.55,
+    "artic": "Sustain",
+    "legato": "On",
+    "drop": "Off",
+    "eng_mix": 0,
+    "eng_color": 0.55,
+    "eng_sustain": 0.6,
+    "eng_detune": 0.25,
+    "space": 0.2,
+    "volume": 0.8,
+    "drive": 0.0,
+    "chorus": 0.0,
+    "a_on": "On",
+    "b_on": "Off",
+    "wave": "Saw",
+    "octave": 0,
+    "syn_detune": 0.15,
+    "cutoff": 0.6,
+    "resonance": 0.15,
+    "attack": 0.02,
+    "decay": 0.4,
+    "sustain": 0.6,
+    "release": 0.3,
+    "strum_mode": "Strum Off",
+    "mix": 0.5,
+    "a_attack": 0,
+    "a_release": 0,
+    "a_vel": 1.0,
+    "b_vel": 0.65,
+    "b_fenv": 0,
+    "glide": 0.35
    }
   },
   {
@@ -986,7 +1404,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -1029,7 +1448,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -1072,7 +1492,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -1115,7 +1536,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   },
   {
@@ -1158,7 +1580,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0.5
+    "b_fenv": 0.5,
+    "glide": 0
    }
   },
   {
@@ -1201,7 +1624,8 @@
     "a_release": 0,
     "a_vel": 1.0,
     "b_vel": 0.65,
-    "b_fenv": 0
+    "b_fenv": 0,
+    "glide": 0
    }
   }
  ]

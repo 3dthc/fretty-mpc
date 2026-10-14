@@ -11,7 +11,7 @@ MPC_VST="${MPC_VST:-$REPO/../mpc-vst-plugins}"
 [ -f "$MPC_VST/tools/build_port.sh" ] || { echo "mpc-vst-plugins not found at $MPC_VST (set MPC_VST=...)" >&2; exit 1; }
 
 missing=""
-for f in acoustic electric folkharp concertharp strumstick violin; do
+for f in acoustic electric folkharp concertharp strumstick violin dantranh psaltery; do
   [ -f "$REPO/engine/$f.smp" ] || missing="$missing $f.smp"
 done
 if [ -n "$missing" ]; then

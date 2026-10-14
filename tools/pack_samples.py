@@ -12,6 +12,9 @@ Instruments (all CC0, see CREDITS.md):
   concertharp  VCSL Concert Harp (stereo).
   strumstick   VCSL Strumstick, played with the fingers (stereo): somewhere between a banjo and a guitar.
   violin       VSCO 2 CE Solo Violin (stereo): bowed with vibrato (looped, so a held note sustains) and pizzicato.
+  dantranh     VCSL Dan Tranh, a Vietnamese zither (mono). Its traditional tuning is retuned per note to the nearest
+               semitone (measured), so it plays in tune with the rest.
+  psaltery     VCSL Psaltery (stereo): plucked, and bowed (looped).
 
 The essential set (default) keeps up to three velocity layers, the two most typical takes of each (closest to the
 layer's median level, so no odd takes), notes up to 4 s with a natural 0.5 s fade, and two takes of each release and
@@ -47,7 +50,7 @@ while i < len(ARGS):
         WANT.append(ARGS[i])
         i += 1
 FULL = OPT.get("full", False)
-ALL = ["acoustic", "electric", "folkharp", "concertharp", "strumstick", "violin"]
+ALL = ["acoustic", "electric", "folkharp", "concertharp", "strumstick", "violin", "dantranh", "psaltery"]
 WANT = WANT or ALL
 
 TRIM_DB = -66.0
@@ -63,7 +66,9 @@ PIZZ_GAIN = 2.6          # the pizzicato takes are recorded ~10 dB softer than t
 # Final level trims, calibrated by playing each instrument through the engine (tools/render_demo.c pitch <n>: E2-C6 at
 # velocity 100) and matching the median power of every note's first 0.5 s to the archtop's. The attack-RMS estimate
 # above is only the starting point: decay shapes differ, so the ear-level match is set here.
-LEVEL_TRIM = {"electric": 1.008, "folkharp": 1.263, "concertharp": 1.901, "strumstick": 1.481, "violin": VIOLIN_TRIM}
+LEVEL_TRIM = {"electric": 1.008, "folkharp": 1.263, "concertharp": 1.901, "strumstick": 1.481, "violin": VIOLIN_TRIM,
+              "dantranh": 2.28, "psaltery": 3.18}
+PSALTERY_BOW_GAIN = 2.9  # the bowed takes are ~14 dB softer than the plucked; held chords add up, so a little under (preset levels)
 ZT_NOTE, ZT_RELEASE, ZT_NOISE = 0, 1, 2
 FLAG_DUAL, FLAG_MONO, FLAG_BOWED = 1, 2, 4   # BOWED: a loop table follows the zones; zone "art" byte = articulation
 
@@ -278,6 +283,51 @@ LOOP_START, LOOP_END = (1.4, 3.4)       # seconds after the bow starts: the loop
 XFADE = 0.25
 
 
+def yin_f0(x, sr=44100, fmin=60, fmax=2000, start=0.08, dur=0.25, thr=0.12):
+    """The pitch of a note (YIN), from a quarter second just after its attack."""
+    x = x[int(start * sr):int((start + dur) * sr)]
+    x = x - x.mean()
+    W = len(x) // 2
+    tmax, tmin = int(sr / fmin), int(sr / fmax)
+    d = np.array([np.sum((x[:W] - x[t:t + W]) ** 2) for t in range(tmax + 2)])
+    cm = np.ones_like(d)
+    cm[1:] = d[1:] * np.arange(1, len(d)) / np.maximum(np.cumsum(d[1:]), 1e-12)
+    for t in range(tmin, tmax):
+        if cm[t] < thr and cm[t] <= cm[t + 1]:
+            a, b, c = cm[t - 1], cm[t], cm[t + 1]
+            off = 0.5 * (a - c) / (a - 2 * b + c) if (a - 2 * b + c) else 0.0
+            return sr / (t + off)
+    return sr / (tmin + int(np.argmin(cm[tmin:tmax])))
+
+
+def measured_root(a, start=0.05):
+    """-> (nearest MIDI note, cents the recording is above it)."""
+    m = a.mean(axis=1)
+    on = int(np.argmax(np.abs(m) > np.abs(m).max() * 0.1))
+    f0 = yin_f0(m[on:], start=start)
+    # YIN can lock onto a weak sub-octave (a resonance under the string): if the spectrum has almost nothing at f0
+    # but a strong partial at 2 f0, the note is really at 2 f0
+    x = m[on + int(start * 44100):on + int(start * 44100) + 32768]
+    S = np.abs(np.fft.rfft(x * np.hanning(len(x))))
+    df = 44100.0 / len(x)
+    amp = lambda hz: S[max(1, int(hz / df) - 4):int(hz / df) + 5].max()
+    while f0 * 2 < 4000 and amp(f0) < 0.1 * amp(2 * f0):
+        f0 *= 2
+    midi = 69 + 12 * np.log2(f0 / 440.0)
+    root = int(round(midi))
+    return root, 100.0 * (midi - root)
+
+
+def retune(a, cents):
+    """Pitch a take down by `cents` (resampled; it gets a little longer or shorter)."""
+    if abs(cents) < 2:
+        return a
+    from scipy.signal import resample_poly
+    from fractions import Fraction
+    fr = Fraction(2 ** (cents / 1200.0)).limit_denominator(2000)   # > 1: more samples = lower
+    return np.stack([resample_poly(a[:, c], fr.numerator, fr.denominator) for c in range(a.shape[1])], axis=1)
+
+
 def onset_trim(a, rel_db=-40.0):
     """Drop the silence before the note (some soft takes start half a second late)."""
     m = np.abs(a).max(axis=1)
@@ -286,9 +336,10 @@ def onset_trim(a, rel_db=-40.0):
     return a[max(0, on - 220):]
 
 
-def make_loop(a):
+def make_loop(a, loop_start=LOOP_START, loop_end=LOOP_END):
     """-> (audio cut to the loop end with a crossfaded tail, loop start). The tail [le-X, le) fades from the
     original into the audio just before the loop start, so jumping from le back to ls is seamless."""
+    LOOP_START, LOOP_END = loop_start, loop_end
     sr, X = 44100, int(XFADE * 44100)
     ls = int(LOOP_START * sr)
     mono = a.mean(axis=1)
@@ -347,8 +398,71 @@ def build_violin():
     return pk
 
 
+# ---------------------------------------------------------------- zithers: VCSL Dan Tranh and Psaltery
+def zither_src(*parts):
+    return os.path.join(OPT["vcsl"], "Chordophones", "Zithers", *parts)
+
+
+def build_dantranh():
+    pk = Pack("dantranh", FLAG_MONO)
+    layers = {"mf": (1, 64), "f": (65, 100), "ff": (101, 127)}
+    groups = {}
+    for p in glob.glob(zither_src("Dan Tranh", "Normal", "*.wav")):
+        m = re.fullmatch(r"([A-Ga-g]#?\d)_(mf|f|ff)_\d\.wav", os.path.basename(p))
+        if m:
+            groups.setdefault(m.group(1).upper(), {})[m.group(2)] = p
+    # the names are only approximate (the instrument has its own tuning): every note's pitch is measured on its f take
+    notes = {}
+    for name, takes in groups.items():
+        ref = takes.get("f") or next(iter(takes.values()))
+        root, cents = measured_root(read_wav(ref))
+        notes[name] = (root, cents)
+    if os.environ.get("FRETTY_SHOW_PEAKS"):
+        print("dantranh pitches:", sorted((r, round(c), n) for n, (r, c) in notes.items()))
+    byroot = {}
+    for name, (r, c) in notes.items():          # two takes on one semitone: keep the one closer to in tune
+        if r not in byroot or abs(c) < abs(notes[byroot[r]][1]):
+            byroot[r] = name
+    groups = {n: groups[n] for n in byroot.values()}
+    roots = sorted(byroot)
+    ranges = spread(roots)
+    for name, takes in sorted(groups.items()):
+        root, cents = notes[name]
+        for dyn, p in takes.items():
+            lv, hv = layers[dyn]
+            idx = pk.add(retune(read_wav(p), cents), True)
+            pk.zones.setdefault((ZT_NOTE, ranges[root][0], ranges[root][1], root, lv, hv), []).append(idx)
+    return pk
+
+
+PSALTERY_LOOP = (1.0, 2.4)        # a long bow stroke peaks around 1-2 s, then the bow runs out
+
+
+def build_psaltery():
+    """art 0 = bowed (LongBow, looped), art 1 = plucked. One take per note; the names are an octave low."""
+    pk = Pack("psaltery", FLAG_BOWED)
+    for art, folder in ((0, "LongBow"), (1, "Pluck")):
+        takes = {}
+        for p in glob.glob(zither_src("Psaltery, Bowed and Plucked", folder, "*.wav")):
+            if re.fullmatch(r"BowedPsaltery_([A-G]#?\d)_Main_\w+_rr\d\.wav", os.path.basename(p)):
+                a = onset_trim(read_wav(p)) * (PSALTERY_BOW_GAIN if art == 0 else 1.0)
+                root, cents = measured_root(a, start=0.8 if art == 0 else 0.05)
+                takes[root] = retune(a, cents)
+        ranges = spread(takes)
+        for root, a in sorted(takes.items()):
+            if art == 0:
+                a, ls = make_loop(a, *PSALTERY_LOOP)
+                idx = pk.add(a, True)
+                pk.loops[idx] = ls
+            else:
+                idx = pk.add(a, True)
+            pk.zones.setdefault((ZT_NOTE, ranges[root][0], ranges[root][1], root, 1, 127, art), []).append(idx)
+    return pk
+
+
 BUILDERS = {"acoustic": build_acoustic, "electric": build_electric, "folkharp": build_folkharp,
-            "concertharp": build_concertharp, "strumstick": build_strumstick, "violin": build_violin}
+            "concertharp": build_concertharp, "strumstick": build_strumstick, "violin": build_violin,
+            "dantranh": build_dantranh, "psaltery": build_psaltery}
 
 
 # ---------------------------------------------------------------- trimming, 16-bit, level

@@ -9,6 +9,8 @@
   https://github.com/sgossner/VCSL
 - **Violin, Violin Pizz** from **VSCO 2 Community Edition** (Solo Violin: arco with vibrato, pizzicato) by Versilian
   Studios. https://github.com/sgossner/VSCO-2-CE (the bowed notes get a crossfaded loop so held notes sustain)
+- **Dan Tranh, Psaltery, Bowed Psaltery** from **VCSL** (Chordophones / Zithers). The dan tranh's traditional tuning
+  is retuned per note to the nearest semitone (measured), so it plays in tune with the other instruments.
 
 `tools/pack_samples.py` repacks only the WAV files and their note / velocity mapping (trimmed, 16-bit, losslessly
 compressed). None of the sources' GUI artwork, photos or signed bank files are used.

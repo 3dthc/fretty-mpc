@@ -28,7 +28,8 @@ ART = os.path.join(VST, "art")
 Y_OFF = 86
 
 THEMES = ["black", "sunburst", "grey"]          # index = the "theme" parameter's option
-INSTRUMENTS = ["Acoustic", "Electric", "Folk Harp", "Concert Harp", "Strumstick", "Violin", "Violin Pizz"]
+INSTRUMENTS = ["Acoustic", "Electric", "Folk Harp", "Concert Harp", "Strumstick", "Violin", "Violin Pizz",
+               "Dan Tranh", "Psaltery", "Bowed Psaltery"]
 ROW_Y, ROW_H = 236, 52                           # the PLAY page's row under the neck
 TOGGLES = [   # key, x, y, w, h, label
     ("artic", 298, ROW_Y, 240, ROW_H, None),     # one picture with two lit halves: SUSTAIN | PALM MUTE
@@ -51,8 +52,8 @@ KNOBS = [  # panel, col, row, key, label
     (2, 0, 0, "eng_mix", "PLUCK"), (2, 0, 1, "mix", "MIX A / B"),
 ]
 # knobs that do nothing for some instruments: drawn dimmed while one of those is picked (indexes into INSTRUMENTS)
-DIM = {"blend": [1, 2, 3, 4, 5, 6],              # only the archtop has a pickup and a mic to blend
-       "noise": [2, 3, 4, 5, 6]}                 # release / fret noises: the archtop and the electric
+DIM = {"blend": list(range(1, 10)),              # only the archtop has a pickup and a mic to blend
+       "noise": list(range(2, 10))}              # release / fret noises: the archtop and the electric
 STRIP = (1032, 236, 240, 384)                    # right column: wordmark + theme (MPC's Q-Link sidebar may cover it)
 STEPPERS = [("theme", "THEME", 1152, 486, 224, 52, 17)]   # key, label, cx, cy, w, h, text size
 NECK = dict(x0=132, x1=1272, yc=106, hn=70, he=84)
@@ -68,7 +69,7 @@ WAVE_BOX = (28, 44, 260, 136)                    # the waveform / instrument pic
 PIC_STEP = (158, 236, 260, 52)                   # cx, cy, w, h: the stepper under it
 L_KNOBS = {  # key, label, cx, cy, bw
     "A": [("tone", "TONE", 390, 150, 124), ("vibrato", "VIBRATO", 516, 150, 124),
-          ("a_vel", "VELOCITY", 736, 150, 136), ("damp", "DAMP", 876, 150, 136),
+          ("a_vel", "VELOCITY", 666, 150, 124), ("damp", "DAMP", 806, 150, 124), ("glide", "GLIDE", 946, 150, 124),
           ("eng_mix", "PLUCK", 78, 520, 136), ("eng_sustain", "RING", 219, 520, 136), ("eng_color", "COLOR", 360, 520, 136),
           ("eng_detune", "DETUNE", 501, 520, 136),
           ("a_attack", "SWELL", 711, 520, 136), ("a_release", "RELEASE", 885, 520, 136)],
@@ -80,10 +81,12 @@ L_KNOBS = {  # key, label, cx, cy, bw
 }
 MIX_KNOB = ("mix", "MIX A / B", 1152, 520, 200)
 S_TOGGLES = [("a_on", 1048, 180, 208, 56, "A \u00b7 GUITAR"), ("b_on", 1048, 252, 208, 56, "B \u00b7 SYNTH")]
-INST_INFO = [  # subtitle, strings drawn (h = harp)
-    ("ARCHTOP \u00b7 PICKUP + MIC", 6), ("SOLID BODY \u00b7 DIRECT", 6), ("PLUCKED \u00b7 STEREO", "h"),
-    ("PEDAL HARP \u00b7 STEREO", "h"), ("THREE STRINGS \u00b7 BANJO-ISH", 3), ("BOWED \u00b7 HELD NOTES SUSTAIN", 4),
-    ("PIZZICATO \u00b7 PLUCKED", 4)]
+INST_INFO = [  # subtitle, strings drawn (h = harp, z = zither, p = psaltery), bow drawn
+    ("ARCHTOP \u00b7 PICKUP + MIC", 6, 0), ("SOLID BODY \u00b7 DIRECT", 6, 0), ("PLUCKED \u00b7 STEREO", "h", 0),
+    ("PEDAL HARP \u00b7 STEREO", "h", 0), ("THREE STRINGS \u00b7 BANJO-ISH", 3, 0),
+    ("BOWED \u00b7 HELD NOTES SUSTAIN", 4, 1), ("PIZZICATO \u00b7 PLUCKED", 4, 0),
+    ("VIETNAMESE ZITHER", "z", 0), ("PLUCKED \u00b7 STEREO", "p", 0),
+    ("BOWED \u00b7 HELD NOTES SUSTAIN", "p", 1)]
 
 
 def knob_xy(p, col, row):
@@ -300,12 +303,20 @@ function instPicture(i, w, h) {
   setup(w, h);
   rrect(0, 0, w, h, 8); ctx.fillStyle = '#0d0d0d'; ctx.fill();
   ctx.save(); rrect(0, 0, w, h, 8); ctx.clip();
-  const [sub, strings] = INST_INFO_JSON[i], name = INST_NAMES_JSON[i].toUpperCase();
+  const [sub, strings, bow] = INST_INFO_JSON[i], name = INST_NAMES_JSON[i].toUpperCase();
   ctx.save(); ctx.shadowColor = 'rgba(255,236,200,0.8)'; ctx.shadowBlur = 10;
   text(name, 16, 38, name.length > 10 ? 22 : 26, '#f6eedd', { weight: 800, ls: 1.5 }); ctx.restore();
   text(sub, 16, 58, 10.5, '#9a958b', { weight: 700, ls: 1.4 });
   ctx.save(); ctx.strokeStyle = '#f6eedd'; ctx.shadowColor = 'rgba(255,236,200,0.9)'; ctx.shadowBlur = 6; ctx.globalAlpha = 0.9;
-  if (strings === 'h') {           // harp: strings fanning down from the neck
+  if (strings === 'z') {           // zither: many fine strings, each on its own movable bridge
+    for (let k = 0; k < 14; k++) { const y = 74 + k * 3.9; ctx.lineWidth = 0.7 + k * 0.05;
+      ctx.beginPath(); ctx.moveTo(16, y); ctx.lineTo(w - 16, y); ctx.stroke();
+      const bx = 70 + k * 9; ctx.fillStyle = '#f6eedd'; ctx.fillRect(bx - 2, y - 2, 4, 4); }
+  } else if (strings === 'p') {    // psaltery: a triangle of strings
+    ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(30, h - 12); ctx.lineTo(w - 30, h - 12); ctx.lineTo(w / 2 + 40, 70); ctx.closePath(); ctx.stroke();
+    for (let k = 1; k < 12; k++) { const u = k / 12, x = 30 + u * (w - 60), top = (h - 12) - (h - 82) * Math.min(u / 0.69, (1 - u) / 0.31);
+      ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(x, h - 13); ctx.lineTo(x, top + 2); ctx.stroke(); }
+  } else if (strings === 'h') {    // harp: strings fanning down from the neck
     for (let k = 0; k < 15; k++) { const x = 22 + k * 15.5, top = 74 + k * 2.2, bot = h - 12 - (14 - k) * 0.4;
       ctx.lineWidth = 1.6 - k * 0.06; ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bot); ctx.stroke(); }
     ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(14, 72); ctx.quadraticCurveTo(w / 2, 62, w - 14, 106); ctx.stroke();
@@ -313,7 +324,9 @@ function instPicture(i, w, h) {
     const n = strings, y0 = 80, y1 = h - 16;
     for (let k = 0; k < n; k++) { const y = n === 1 ? (y0 + y1) / 2 : y0 + (y1 - y0) * k / (n - 1);
       ctx.lineWidth = 0.9 + (n - 1 - k) * (2.2 / n); ctx.beginPath(); ctx.moveTo(16, y); ctx.lineTo(w - 16, y); ctx.stroke(); }
-    if (i === 5) {                 // the bow
+  }
+  if (bow) {                       // the bow
+    {
       ctx.globalAlpha = 0.75; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(60, h - 10); ctx.lineTo(w - 40, 74); ctx.stroke();
       ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(64, h - 4); ctx.lineTo(w - 36, 80); ctx.stroke(); }
   }

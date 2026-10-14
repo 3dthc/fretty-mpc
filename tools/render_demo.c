@@ -11,6 +11,7 @@
 
 int fretty_bank_state(void);
 int fretty_bank_state_of(int i);
+int fretty_ninst(void);
 
 typedef struct { double t; uint8_t a, b, c; const char *pk, *pv; } ev_t;
 static ev_t evs[4096];
@@ -31,8 +32,9 @@ int main(int argc, char **argv) {
     void *s = E->create(argv[1]);
     {   /* load every instrument first (the plugin loads one when it is first selected) */
         int16_t tmp[256];
-        for (int k = 0; k < 6; k++) {          /* choices 0-5 cover every sample file */
-            char v[16]; snprintf(v, sizeof v, "%d", k);
+        static const int CHOICE_OF_BANK[] = { 0, 1, 2, 3, 4, 5, 7, 8 };   /* one INSTRUMENT choice per sample file */
+        for (int k = 0; k < fretty_ninst(); k++) {
+            char v[16]; snprintf(v, sizeof v, "%d", CHOICE_OF_BANK[k]);
             E->set_param(s, "instrument", v);
             E->render(s, tmp, 128);
             for (int w = 0; w < 3000 && fretty_bank_state_of(k) == 1; w++) usleep(10000);
@@ -66,6 +68,17 @@ int main(int argc, char **argv) {
         chord(t, 1.0, C, 5, 100); t += 1.8;
         goto run;
     }
+    if (argc > 3 && !strcmp(argv[3], "glide")) {      /* steel-style slides on the electric, then the dan tranh */
+        static const char *IN[2] = { "1", "7" };
+        for (int k = 0; k < 2; k++) {
+            prm(t, "instrument", IN[k]); prm(t, "legato", "1"); prm(t, "glide", "0.45"); prm(t, "vibrato", "0.2");
+            prm(t, "strum_mode", "0"); prm(t, "space", "0.3");
+            int line[] = { 64, 67, 69, 67, 64, 62, 64 };
+            for (int q = 0; q < 7; q++) { note(t, 0.75, line[q], 100); t += 0.6; }
+            t += 1.5;
+        }
+        goto run;
+    }
     if (argc > 3 && !strcmp(argv[3], "strum")) {      /* strum modes: down, up, alternate */
         for (int m = 1; m <= 3; m++) {
             char mv[16]; snprintf(mv, sizeof mv, "%d", m);
@@ -76,8 +89,8 @@ int main(int argc, char **argv) {
         goto run;
     }
     if (argc > 3 && !strcmp(argv[3], "tour")) {       /* every instrument, the effects and the synth */
-        static const char *IN[7] = { "0", "1", "2", "3", "4", "5", "6" };
-        for (int k = 0; k < 7; k++) {
+        static const char *IN[10] = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" };
+        for (int k = 0; k < 10; k++) {
             prm(t, "instrument", IN[k]);
             chord(t + 0.05, 1.4, C, 5, 100); t += 1.6;
             int m[] = { 64, 67, 69, 72 };

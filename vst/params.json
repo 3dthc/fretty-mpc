@@ -306,7 +306,10 @@
     "Concert Harp",
     "Strumstick",
     "Violin",
-    "Violin Pizz"
+    "Violin Pizz",
+    "Dan Tranh",
+    "Psaltery",
+    "Bowed Psaltery"
    ],
    "default": "Acoustic"
   },
@@ -544,6 +547,14 @@
    "max": 2,
    "default": 0,
    "display": "int"
+  },
+  {
+   "key": "glide",
+   "name": "Glide",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "dynamic_display": true
   }
  ]
 }

@@ -1,9 +1,10 @@
 /* Fretty: a sampled guitar (and friends) for MPC OS (mpc_engine, see mpc-vst-plugins wrapper/engine.h).
  *
- * Layer A, the instrument: one of seven sampled instruments (all CC0, tools/pack_samples.py, engine/<name>.smp):
+ * Layer A, the instrument: one of ten sampled instruments (all CC0, tools/pack_samples.py, engine/<name>.smp):
  * an archtop (Karoryfer Shinyguitar: each take is a pickup + mic pair, so BLEND mixes them per sample), an electric
  * (Karoryfer Emilyguitar, mono), a folk harp, a concert harp and a strumstick (VCSL, stereo), and a violin bowed or
- * plucked (VSCO 2 CE, stereo; the bowed notes loop, so they sustain while held). Each sample file is losslessly
+ * plucked (VSCO 2 CE, stereo; the bowed notes loop, so they sustain while held), and two zithers (VCSL): a dan tranh
+ * and a psaltery, plucked or bowed. Each sample file is losslessly
  * compressed on disk and decoded into RAM the first time an instrument is used (shared by every instance).
  *
  * Playing model: six strings. Each note-on batch (a chord arrives in one block) is assigned to strings
@@ -45,11 +46,12 @@ typedef struct __attribute__((packed)) { uint8_t type, lo, hi, root, lv, hv, nrr
 
 enum { BANK_NONE, BANK_LOADING, BANK_READY, BANK_FAILED };
 enum { FLAG_DUAL = 1, FLAG_MONO = 2, FLAG_BOWED = 4 };
-#define NINST 6                     /* sample files */
-static const char *INST_FILE[NINST] = { "acoustic", "electric", "folkharp", "concertharp", "strumstick", "violin" };
-#define NCHOICE 7                   /* the INSTRUMENT options: a file and, for files with articulations, which one */
-static const int CHOICE_BANK[NCHOICE] = { 0, 1, 2, 3, 4, 5, 5 };
-static const int CHOICE_ART[NCHOICE] = { -1, -1, -1, -1, -1, 0, 1 };      /* violin: 0 bowed, 1 pizzicato */
+#define NINST 8                     /* sample files */
+static const char *INST_FILE[NINST] = { "acoustic", "electric", "folkharp", "concertharp", "strumstick", "violin",
+                                        "dantranh", "psaltery" };
+#define NCHOICE 10                  /* the INSTRUMENT options: a file and, for files with articulations, which one */
+static const int CHOICE_BANK[NCHOICE] = { 0, 1, 2, 3, 4, 5, 5, 6, 7, 7 };
+static const int CHOICE_ART[NCHOICE] = { -1, -1, -1, -1, -1, 0, 1, -1, 1, 0 };   /* 0 bowed, 1 plucked */
 
 typedef struct {
     int state, stop;
@@ -243,7 +245,7 @@ enum {
     P_ENG_MIX, P_ENG_COLOR, P_ENG_SUSTAIN, P_ENG_DETUNE, P_SPACE, P_VOLUME, P_THEME,
     P_INSTRUMENT, P_DRIVE, P_CHORUS, P_A_ON, P_B_ON, P_A_LEVEL, P_B_LEVEL,
     P_WAVE, P_OCTAVE, P_SYN_DETUNE, P_CUTOFF, P_RESO, P_ATTACK, P_DECAY, P_SUSTAIN, P_RELEASE,
-    P_STRUM_MODE, P_MIX, P_A_ATTACK, P_A_RELEASE, P_A_VEL, P_B_VEL, P_B_FENV, NP
+    P_STRUM_MODE, P_MIX, P_A_ATTACK, P_A_RELEASE, P_A_VEL, P_B_VEL, P_B_FENV, P_GLIDE, NP
 };
 /* P_STRUM, P_ENGINE, P_A_LEVEL and P_B_LEVEL are kept (parameter order is fixed) but no longer used: STRUM MODE,
  * the PLUCK level (on above zero) and MIX replace them. */
@@ -253,7 +255,7 @@ static const char *PKEY[NP] = {
     "eng_mix", "eng_color", "eng_sustain", "eng_detune", "space", "volume", "theme",
     "instrument", "drive", "chorus", "a_on", "b_on", "a_level", "b_level",
     "wave", "octave", "syn_detune", "cutoff", "resonance", "attack", "decay", "sustain", "release",
-    "strum_mode", "mix", "a_attack", "a_release", "a_vel", "b_vel", "b_fenv"
+    "strum_mode", "mix", "a_attack", "a_release", "a_vel", "b_vel", "b_fenv", "glide"
 };
 static const float PDEF[NP] = {
     0.35f, 1.0f, 0.0f, 0.0f, 0, 0, 0.35f, 0.55f,
@@ -261,7 +263,7 @@ static const float PDEF[NP] = {
     0.0f, 0.55f, 0.60f, 0.25f, 0.0f, 0.80f, 0,
     0, 0, 0, 1, 0, 0.80f, 0.50f,
     2, 0, 0.15f, 0.60f, 0.15f, 0.02f, 0.40f, 0.60f, 0.30f,
-    1, 0.5f, 0, 0, 1.0f, 0.65f, 0
+    1, 0.5f, 0, 0, 1.0f, 0.65f, 0, 0
 };
 static const int OPEN[NSTR] = { 40, 45, 50, 55, 59, 64 };
 static const char *NOTE_NAME[12] = { "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B" };
@@ -284,6 +286,7 @@ typedef struct {
     float lp, lpr, lp_k_scale;
     int palm, bank;
     uint32_t loop_s, loop_e;           /* a bowed sustain loops [loop_s, loop_e) while it sounds */
+    float glide, glide_k;              /* GLIDE: semitones still to slide (decays to 0), per-block factor */
     /* synth layer */
     int syn_on, syn_stage;          /* 0 attack, 1 decay/sustain, 2 release, 3 done */
     float syn_env, syn_hz, syn_vel, ph1, ph2, ic1, ic2;
@@ -487,11 +490,13 @@ static void start_note(inst_t *s, int key, int vel, int str, int fret, int delay
     const zone_t *z = find_zone(b, ZT_NOTE, key, vel, art);
     if (!z) return;
     int legato = 0;
+    float old_key = 0;
     int old = str >= 0 ? s->str_voice[str] : -1;
     if (old >= 0 && s->v[old].on) {
         voice_t *ov = &s->v[old];
         legato = allow_legato && s->p[P_LEGATO] > 0.5f && ov->held && !ov->releasing && ov->kind == VK_NOTE &&
-                 abs(key - ov->key) <= (bow ? 12 : 5);
+                 abs(key - ov->key) <= ((bow || s->p[P_GLIDE] > 0.005f) ? 12 : 5);
+        if (legato) old_key = ov->key + ov->glide;      /* where the old note was, mid-slide included */
         ov->held = 0;
         choke(ov, legato ? (bow ? 45.0f : 12.0f) : 6.0f);
     }
@@ -520,6 +525,13 @@ static void start_note(inst_t *s, int key, int vel, int str, int fret, int delay
         v->pos = (bow ? 0.12 : 0.045) * SR;   /* past the attack: the finger (or the same bow), not a new pick */
         v->gain *= bow ? 0.92f : 0.78f;
         v->att_step = 1.0f / ((bow ? 0.035f : 0.006f) * SR);
+        float gl = s->p[P_GLIDE];
+        if (gl > 0.005f) {                    /* GLIDE: slide from the old note, like a steel bar or a bent string */
+            float t = 0.015f * powf(40.0f, gl);                      /* 15 ms .. 0.6 s to get (nearly) there */
+            v->glide = old_key - key;
+            v->glide_k = expf(-128.0f * 4.0f / (t * SR));             /* per 128-frame block, ~2% left after t */
+            v->gain = g * (bow ? 0.95f : 0.9f);                       /* a slide doesn't re-pluck: barely softer */
+        }
     }
     float d = s->p[P_DAMP];
     if (palm) { v->hold = 0.012f; v->dk = expf(-1.0f / (0.09f * SR)); v->lp_k_scale = 0.38f; }
@@ -586,9 +598,27 @@ static void play_batch(inst_t *s, pend_t *pd, int n) {
     int pos = (int)lroundf(s->p[P_POSITION]);
     float target = pos > 0 ? (float)pos : s->hand;
     float fsum = 0; int fcount = 0;
+    /* LEGATO (or GLIDE): a single note played while another is still held stays on that string, so it slurs or
+     * slides from it instead of being picked on a free string */
+    int keep_str = -1;
+    if (n == 1 && s->p[P_LEGATO] > 0.5f) {
+        int lim = (bowed(s) || s->p[P_GLIDE] > 0.005f) ? 12 : 5, bd = 99;
+        for (int st = 0; st < NSTR; st++) {
+            int ov = s->str_voice[st];
+            if (ov < 0 || !s->v[ov].on || !s->v[ov].held || s->v[ov].releasing || s->v[ov].kind != VK_NOTE) continue;
+            int d = abs(pd[0].key - s->v[ov].key), fr = pd[0].key - open_note(s, st);
+            if (d <= lim && fr >= 0 && fr <= (st == NSTR - 1 ? 24 : 17) && d < bd) { bd = d; keep_str = st; }
+        }
+    }
     for (int i = 0; i < n; i++) {
         int best = -1, bfret = 0;
         float bs = 1e9f;
+        if (keep_str >= 0) {
+            best = keep_str; bfret = pd[0].key - open_note(s, keep_str);
+            used |= 1 << best; pd[i].str = best; pd[i].fret = bfret;
+            if (bfret > 0) { fsum += bfret; fcount++; }
+            continue;
+        }
         for (int st = 0; st < NSTR; st++) {
             if (used & (1 << st)) continue;
             int fr = pd[i].key - open_note(s, st);
@@ -713,6 +743,9 @@ static int fmt_display(inst_t *s, int i, char *buf, int n) {
         if (v <= 0.005f) return snprintf(buf, n, "NATURAL");
         float t = 0.05f * powf(60.0f, v);
         return t >= 1 ? snprintf(buf, n, "%.2f s", t) : snprintf(buf, n, "%d ms", (int)lroundf(t * 1000)); }
+    case P_GLIDE: {
+        if (v <= 0.005f) return snprintf(buf, n, "OFF");
+        return snprintf(buf, n, "%d ms", (int)lroundf(15.0f * powf(40.0f, v))); }
     case P_B_FENV: return v < 0.005f ? snprintf(buf, n, "OFF") : snprintf(buf, n, "+%.1f OCT", 6.0f * v);
     case P_ENG_MIX: return v <= 0.005f ? snprintf(buf, n, "OFF") : snprintf(buf, n, "%d%%", (int)lroundf(v * 100));
     case P_ATTACK: case P_DECAY: case P_RELEASE: {
@@ -874,7 +907,8 @@ static void eng_render(void *inst, int16_t *out, int frames) {
             vib = vib_depth * fin * vib_sin;
         }
         float bend = v->kind == VK_NOTE ? s->bend : 0;
-        float pitch_mul = powf(2.0f, (bend + vib) / 12.0f);
+        float pitch_mul = powf(2.0f, (bend + vib + v->glide) / 12.0f);
+        if (v->glide != 0) { v->glide *= v->glide_k; if (fabsf(v->glide) < 0.002f) v->glide = 0; }
         double rate = pow(2.0, v->semis / 12.0) * pitch_mul;
         float lpk = (tone_open && v->lp_k_scale >= 1.0f) ? 1.0f
                   : 1.0f - expf(-2 * PI_F * fminf(tone_hz * v->lp_k_scale, 18000.0f) / SR);

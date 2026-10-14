@@ -51,6 +51,27 @@ PRESETS = [
     ("Electric Violin", {"instrument": "Violin", "legato": "On", "strum_mode": "Strum Off", "tone": 0.8, "drive": 0.3,
                          "chorus": 0.3, "vibrato": 0.1, "space": 0.25}),
     ("Violin Pizzicato", {"instrument": "Violin Pizz", "strum_mode": "Strum Off", "space": 0.3}),
+    # ---- zithers and dulcimers
+    ("Dan Tranh", {"instrument": "Dan Tranh", "strum_speed": 0.6, "space": 0.3}),
+    ("Dan Tranh Bends", {"instrument": "Dan Tranh", "legato": "On", "glide": 0.4, "vibrato": 0.2,
+                         "strum_mode": "Strum Off", "space": 0.3}),
+    ("Psaltery", {"instrument": "Psaltery", "strum_speed": 0.5, "space": 0.35}),
+    ("Bowed Psaltery", {"instrument": "Bowed Psaltery", "legato": "On", "strum_mode": "Strum Off", "space": 0.5}),
+    # no free dulcimer recordings: a hammered one from the dan tranh's steel strings with a bright, doubled pluck
+    # (hammered dulcimers have two or more strings per note), a mountain one from the strumstick (a close cousin)
+    ("Hammered Dulcimer", {"instrument": "Dan Tranh", "tone": 1.0, "eng_mix": 0.4, "eng_color": 0.95,
+                           "eng_sustain": 0.8, "eng_detune": 0.35, "chorus": 0.15, "strum_speed": 0.2,
+                           "strum_mode": "Strum Alt", "space": 0.3}),
+    ("Mountain Dulcimer", {"instrument": "Strumstick", "tone": 0.95, "strum_speed": 0.3, "strum_mode": "Strum Alt",
+                           "noise": 0.3, "eng_mix": 0.15, "eng_color": 0.7, "eng_sustain": 0.7, "space": 0.15}),
+    # ---- steel guitar: no free steel recordings either; the slide is GLIDE (LEGATO on: overlap the notes)
+    ("Lap Steel", {"instrument": "Electric", "legato": "On", "glide": 0.4, "vibrato": 0.25, "tone": 0.85,
+                   "a_attack": 0.12, "strum_mode": "Strum Off", "chorus": 0.15, "space": 0.35}),
+    ("Pedal Steel Swells", {"instrument": "Electric", "legato": "On", "glide": 0.3, "vibrato": 0.15,
+                            "a_attack": 0.5, "a_release": 0.5, "strum_mode": "Strum Off", "chorus": 0.3,
+                            "space": 0.55}),
+    ("Dobro Slide", {"instrument": "Acoustic", "blend": 0.8, "legato": "On", "glide": 0.35, "vibrato": 0.3,
+                     "strum_mode": "Strum Off", "space": 0.2}),
     # ---- A + B: the instrument with the synth layer, and the synth on its own
     ("Guitar + Pad", {"b_on": "On", "wave": "Saw", "attack": 0.45, "release": 0.6, "cutoff": 0.45, "mix": 0.32,
                       "syn_detune": 0.25, "space": 0.35}),
