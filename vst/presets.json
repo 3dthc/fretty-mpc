@@ -41,7 +41,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -85,7 +87,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -129,7 +133,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -173,7 +179,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -217,7 +225,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -261,7 +271,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -305,7 +317,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -349,7 +363,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -393,7 +409,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -437,7 +455,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -481,7 +501,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -525,7 +547,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -569,7 +593,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -613,7 +639,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -657,7 +685,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -701,7 +731,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -745,7 +777,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -789,7 +823,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -833,7 +869,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -877,7 +915,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -921,7 +961,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -965,7 +1007,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -1009,7 +1053,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -1053,7 +1099,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0.4
+    "glide": 0.4,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -1097,7 +1145,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -1141,7 +1191,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -1185,7 +1237,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -1229,7 +1283,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -1273,7 +1329,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0.4
+    "glide": 0.4,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -1317,7 +1375,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0.3
+    "glide": 0.3,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -1361,7 +1421,285 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0.35
+    "glide": 0.35,
+    "echo": 0,
+    "echo_time": 0.6
+   }
+  },
+  {
+   "name": "Weissenborn Slide",
+   "values": {
+    "instrument": "Acoustic",
+    "blend": 0.85,
+    "tone": 0.9,
+    "damp": 0.0,
+    "vibrato": 0.35,
+    "position": 0,
+    "capo": 0,
+    "strum_speed": 0.35,
+    "noise": 0.55,
+    "artic": "Sustain",
+    "legato": "On",
+    "drop": "Off",
+    "eng_mix": 0.2,
+    "eng_color": 0.55,
+    "eng_sustain": 0.9,
+    "eng_detune": 0.25,
+    "space": 0.4,
+    "volume": 0.8,
+    "drive": 0.0,
+    "chorus": 0.0,
+    "a_on": "On",
+    "b_on": "Off",
+    "wave": "Saw",
+    "octave": 0,
+    "syn_detune": 0.15,
+    "cutoff": 0.6,
+    "resonance": 0.15,
+    "attack": 0.02,
+    "decay": 0.4,
+    "sustain": 0.6,
+    "release": 0.3,
+    "strum_mode": "Strum Off",
+    "mix": 0.5,
+    "a_attack": 0,
+    "a_release": 0.5,
+    "a_vel": 1.0,
+    "b_vel": 0.65,
+    "b_fenv": 0,
+    "glide": 0.45,
+    "echo": 0.15,
+    "echo_time": 0.62
+   }
+  },
+  {
+   "name": "Chorus Wash",
+   "values": {
+    "instrument": "Electric",
+    "blend": 0.35,
+    "tone": 0.9,
+    "damp": 0.0,
+    "vibrato": 0.0,
+    "position": 0,
+    "capo": 0,
+    "strum_speed": 0.35,
+    "noise": 0.55,
+    "artic": "Sustain",
+    "legato": "On",
+    "drop": "Off",
+    "eng_mix": 0,
+    "eng_color": 0.55,
+    "eng_sustain": 0.6,
+    "eng_detune": 0.25,
+    "space": 0.6,
+    "volume": 0.8,
+    "drive": 0.0,
+    "chorus": 0.85,
+    "a_on": "On",
+    "b_on": "Off",
+    "wave": "Saw",
+    "octave": 0,
+    "syn_detune": 0.15,
+    "cutoff": 0.6,
+    "resonance": 0.15,
+    "attack": 0.02,
+    "decay": 0.4,
+    "sustain": 0.6,
+    "release": 0.3,
+    "strum_mode": "Strum Alt",
+    "mix": 0.5,
+    "a_attack": 0,
+    "a_release": 0.4,
+    "a_vel": 1.0,
+    "b_vel": 0.65,
+    "b_fenv": 0,
+    "glide": 0,
+    "echo": 0.35,
+    "echo_time": 0.68
+   }
+  },
+  {
+   "name": "Bass VI Melody",
+   "values": {
+    "instrument": "Electric",
+    "blend": 0.35,
+    "tone": 0.75,
+    "damp": 0.0,
+    "vibrato": 0.0,
+    "position": 0,
+    "capo": 0,
+    "strum_speed": 0.35,
+    "noise": 0.55,
+    "artic": "Sustain",
+    "legato": "On",
+    "drop": "Off",
+    "eng_mix": 0,
+    "eng_color": 0.55,
+    "eng_sustain": 0.6,
+    "eng_detune": 0.25,
+    "space": 0.45,
+    "volume": 1.0,
+    "drive": 0.15,
+    "chorus": 0.6,
+    "a_on": "On",
+    "b_on": "Off",
+    "wave": "Saw",
+    "octave": 0,
+    "syn_detune": 0.15,
+    "cutoff": 0.6,
+    "resonance": 0.15,
+    "attack": 0.02,
+    "decay": 0.4,
+    "sustain": 0.6,
+    "release": 0.3,
+    "strum_mode": "Strum Off",
+    "mix": 0.5,
+    "a_attack": 0,
+    "a_release": 0,
+    "a_vel": 1.0,
+    "b_vel": 0.65,
+    "b_fenv": 0,
+    "glide": 0,
+    "echo": 0.3,
+    "echo_time": 0.6
+   }
+  },
+  {
+   "name": "Cold Wave Layers",
+   "values": {
+    "instrument": "Electric",
+    "blend": 0.35,
+    "tone": 1.0,
+    "damp": 0.0,
+    "vibrato": 0.0,
+    "position": 0,
+    "capo": 0,
+    "strum_speed": 0.4,
+    "noise": 0.55,
+    "artic": "Sustain",
+    "legato": "On",
+    "drop": "Off",
+    "eng_mix": 0,
+    "eng_color": 0.55,
+    "eng_sustain": 0.6,
+    "eng_detune": 0.25,
+    "space": 0.7,
+    "volume": 0.8,
+    "drive": 0.0,
+    "chorus": 0.7,
+    "a_on": "On",
+    "b_on": "On",
+    "wave": "Saw",
+    "octave": 0,
+    "syn_detune": 0.3,
+    "cutoff": 0.38,
+    "resonance": 0.15,
+    "attack": 0.55,
+    "decay": 0.4,
+    "sustain": 0.6,
+    "release": 0.65,
+    "strum_mode": "Strum Alt",
+    "mix": 0.3,
+    "a_attack": 0,
+    "a_release": 0,
+    "a_vel": 1.0,
+    "b_vel": 0.65,
+    "b_fenv": 0,
+    "glide": 0,
+    "echo": 0.3,
+    "echo_time": 0.72
+   }
+  },
+  {
+   "name": "Post-Punk Grit",
+   "values": {
+    "instrument": "Electric",
+    "blend": 0.35,
+    "tone": 1.0,
+    "damp": 0.0,
+    "vibrato": 0.0,
+    "position": 0,
+    "capo": 0,
+    "strum_speed": 0.15,
+    "noise": 0.55,
+    "artic": "Sustain",
+    "legato": "On",
+    "drop": "Off",
+    "eng_mix": 0,
+    "eng_color": 0.55,
+    "eng_sustain": 0.6,
+    "eng_detune": 0.25,
+    "space": 0.28,
+    "volume": 0.8,
+    "drive": 0.62,
+    "chorus": 0.0,
+    "a_on": "On",
+    "b_on": "Off",
+    "wave": "Saw",
+    "octave": 0,
+    "syn_detune": 0.15,
+    "cutoff": 0.6,
+    "resonance": 0.15,
+    "attack": 0.02,
+    "decay": 0.4,
+    "sustain": 0.6,
+    "release": 0.3,
+    "strum_mode": "Strum Down",
+    "mix": 0.5,
+    "a_attack": 0,
+    "a_release": 0,
+    "a_vel": 1.0,
+    "b_vel": 0.65,
+    "b_fenv": 0,
+    "glide": 0,
+    "echo": 0.18,
+    "echo_time": 0.25
+   }
+  },
+  {
+   "name": "Cold Room Clean",
+   "values": {
+    "instrument": "Electric",
+    "blend": 0.35,
+    "tone": 0.95,
+    "damp": 0.0,
+    "vibrato": 0.0,
+    "position": 0,
+    "capo": 0,
+    "strum_speed": 0.35,
+    "noise": 0.55,
+    "artic": "Sustain",
+    "legato": "On",
+    "drop": "Off",
+    "eng_mix": 0,
+    "eng_color": 0.55,
+    "eng_sustain": 0.6,
+    "eng_detune": 0.25,
+    "space": 0.45,
+    "volume": 0.95,
+    "drive": 0.08,
+    "chorus": 0.0,
+    "a_on": "On",
+    "b_on": "Off",
+    "wave": "Saw",
+    "octave": 0,
+    "syn_detune": 0.15,
+    "cutoff": 0.6,
+    "resonance": 0.15,
+    "attack": 0.02,
+    "decay": 0.4,
+    "sustain": 0.6,
+    "release": 0.3,
+    "strum_mode": "Strum Off",
+    "mix": 0.5,
+    "a_attack": 0,
+    "a_release": 0,
+    "a_vel": 1.0,
+    "b_vel": 0.65,
+    "b_fenv": 0,
+    "glide": 0,
+    "echo": 0.28,
+    "echo_time": 0.3
    }
   },
   {
@@ -1405,7 +1743,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -1449,7 +1789,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -1493,7 +1835,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -1537,7 +1881,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -1581,7 +1927,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0.5,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   },
   {
@@ -1625,7 +1973,9 @@
     "a_vel": 1.0,
     "b_vel": 0.65,
     "b_fenv": 0,
-    "glide": 0
+    "glide": 0,
+    "echo": 0,
+    "echo_time": 0.6
    }
   }
  ]

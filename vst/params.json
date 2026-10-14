@@ -555,6 +555,22 @@
    "max": 1,
    "default": 0,
    "dynamic_display": true
+  },
+  {
+   "key": "echo",
+   "name": "Echo",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "dynamic_display": true
+  },
+  {
+   "key": "echo_time",
+   "name": "Echo Time",
+   "min": 0,
+   "max": 1,
+   "default": 0.6,
+   "dynamic_display": true
   }
  ]
 }

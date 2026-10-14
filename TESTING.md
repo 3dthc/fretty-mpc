@@ -1,26 +1,26 @@
-# Device test (v0.5.0)
+# Device test (v0.6.0)
 
-Goal: confirm Fretty v0.5.0 builds, loads with its three pages, plays every instrument (now with the zithers), and stays light on the CPU.
+Goal: confirm Fretty v0.6.0 builds, loads with its three pages, plays every instrument (now with the zithers), and stays light on the CPU.
 
 **If you installed the earlier test build (Archtop):** remove it first (`uninstall.sh` from its zip, or the installer
 app), since Fretty is a new plugin with its own folder.
 
 ## 1. Install (Ubuntu in WSL)
-Download all three zips to your Windows **Downloads** folder: `fretty-mpc-v0.5.0.zip`, `fretty-instruments-1-v0.5.0.zip`
-and `fretty-instruments-2-v0.5.0.zip` (the instruments are split only because of a download size limit).
+Download all three zips to your Windows **Downloads** folder: `fretty-mpc-v0.6.0.zip`, `fretty-instruments-1-v0.6.0.zip`
+and `fretty-instruments-2-v0.6.0.zip` (the instruments are split only because of a download size limit).
 Start Docker Desktop, then paste this one line into Ubuntu:
 
 ```sh
-rm -rf ~/fretty-mpc && python3 -m zipfile -e /mnt/c/Users/*/Downloads/fretty-mpc-v0.5.0.zip ~/ && bash ~/fretty-mpc/install.sh
+rm -rf ~/fretty-mpc && python3 -m zipfile -e /mnt/c/Users/*/Downloads/fretty-mpc-v0.6.0.zip ~/ && bash ~/fretty-mpc/install.sh
 ```
 
 `install.sh` adds the instruments from the other two zips, checks Docker and the toolchain (`~/mpc-vst-plugins`, cloned
-if missing), builds, and copies `Fretty-0.5.0-mpc-armv7.zip` into your Windows Downloads. It stops with a plain
+if missing), builds, and copies `Fretty-0.6.0-mpc-armv7.zip` into your Windows Downloads. It stops with a plain
 message if something is missing; fix that and run `bash ~/fretty-mpc/install.sh` again.
 Expected at the end of the build output:
 - `exported: VSTPluginMain`
 - `highest glibc: GLIBC_2.x` (2.31 or lower is ideal; above 2.36 would not load)
-- `dist/Fretty-0.5.0-mpc-armv7.zip`, about 68 MB
+- `dist/Fretty-0.6.0-mpc-armv7.zip`, about 68 MB
 
 The first build with the new page also downloads the toolchain's artwork renderer image (Playwright, ~1-2 GB, once).
 
@@ -59,7 +59,8 @@ Because the instrument list grew, open a fresh Fretty rather than a project save
 | 20 | Strum | STRUM ◀ ▶: Strum Down / Up / Alt / Off, play chords | down = low string first, up = high first, Alt = alternates while you keep strumming |
 | 20b | Zithers | Dan Tranh, Psaltery, Bowed Psaltery: notes and chords | in tune with the guitars; the bowed one sustains while held |
 | 20c | Glide | Lap Steel preset: play a line, overlapping each note with the next | each note slides into the next |
-| 21 | Effects | DRIVE, CHORUS, SPACE, PLUCK up and back to zero | at zero the sound is exactly the clean one |
+| 21 | Effects | DRIVE, CHORUS, ECHO, SPACE, PLUCK up and back to zero | at zero the sound is exactly the clean one |
+| 21b | Echo | ECHO up, play one note, turn ECHO TIME while it repeats | repeats bounce left / right and fade; TIME glides with no clicks |
 | 22 | Layer B | LAYER B page: B · SYNTH on, wave ◀ ▶, CUTOFF, FILTER ENV, envelope | the screen shows the wave; FILTER ENV adds a "pluck" to the synth |
 | 23 | Mix + solo | MIX A / B left, middle, right (both on); then A off, then B off | left = mostly A, middle = both full, right = mostly B; a layer alone plays at full |
 | 24 | Swell | LAYER A: SWELL up, play notes; RELEASE up | notes fade in like a volume knob; released notes ring on |

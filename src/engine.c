@@ -17,7 +17,8 @@
  * resonant low-pass filter (with an envelope amount) and an ADSR envelope. A and B switch on and off independently
  * (solo either); with both on, MIX balances them (the middle is both at full).
  *
- * Effects on the mix: DRIVE (an amp-style soft clipper), CHORUS, SPACE (reverb). Each is fully bypassed at zero. */
+ * Effects on the mix: DRIVE (an amp-style soft clipper), CHORUS, ECHO (a stereo ping-pong delay with darkening
+ * repeats), SPACE (reverb). Each is fully bypassed at zero. */
 #define _GNU_SOURCE
 #include <math.h>
 #include <pthread.h>
@@ -37,6 +38,7 @@
 #define KS_MASK (KS_LEN - 1)
 #define MAX_EV 256
 #define PI_F 3.14159265f
+#define DLY_LEN 49152                /* echo line: 1.11 s */
 
 enum { ZT_NOTE = 0, ZT_RELEASE = 1, ZT_NOISE = 2 };
 
@@ -245,7 +247,7 @@ enum {
     P_ENG_MIX, P_ENG_COLOR, P_ENG_SUSTAIN, P_ENG_DETUNE, P_SPACE, P_VOLUME, P_THEME,
     P_INSTRUMENT, P_DRIVE, P_CHORUS, P_A_ON, P_B_ON, P_A_LEVEL, P_B_LEVEL,
     P_WAVE, P_OCTAVE, P_SYN_DETUNE, P_CUTOFF, P_RESO, P_ATTACK, P_DECAY, P_SUSTAIN, P_RELEASE,
-    P_STRUM_MODE, P_MIX, P_A_ATTACK, P_A_RELEASE, P_A_VEL, P_B_VEL, P_B_FENV, P_GLIDE, NP
+    P_STRUM_MODE, P_MIX, P_A_ATTACK, P_A_RELEASE, P_A_VEL, P_B_VEL, P_B_FENV, P_GLIDE, P_ECHO, P_ECHO_TIME, NP
 };
 /* P_STRUM, P_ENGINE, P_A_LEVEL and P_B_LEVEL are kept (parameter order is fixed) but no longer used: STRUM MODE,
  * the PLUCK level (on above zero) and MIX replace them. */
@@ -255,7 +257,7 @@ static const char *PKEY[NP] = {
     "eng_mix", "eng_color", "eng_sustain", "eng_detune", "space", "volume", "theme",
     "instrument", "drive", "chorus", "a_on", "b_on", "a_level", "b_level",
     "wave", "octave", "syn_detune", "cutoff", "resonance", "attack", "decay", "sustain", "release",
-    "strum_mode", "mix", "a_attack", "a_release", "a_vel", "b_vel", "b_fenv", "glide"
+    "strum_mode", "mix", "a_attack", "a_release", "a_vel", "b_vel", "b_fenv", "glide", "echo", "echo_time"
 };
 static const float PDEF[NP] = {
     0.35f, 1.0f, 0.0f, 0.0f, 0, 0, 0.35f, 0.55f,
@@ -263,7 +265,7 @@ static const float PDEF[NP] = {
     0.0f, 0.55f, 0.60f, 0.25f, 0.0f, 0.80f, 0,
     0, 0, 0, 1, 0, 0.80f, 0.50f,
     2, 0, 0.15f, 0.60f, 0.15f, 0.02f, 0.40f, 0.60f, 0.30f,
-    1, 0.5f, 0, 0, 1.0f, 0.65f, 0, 0
+    1, 0.5f, 0, 0, 1.0f, 0.65f, 0, 0, 0, 0.6f
 };
 static const int OPEN[NSTR] = { 40, 45, 50, 55, 59, 64 };
 static const char *NOTE_NAME[12] = { "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B" };
@@ -315,6 +317,7 @@ typedef struct {
     /* effects */
     float drv_lp[2], drv_dc_x[2], drv_dc_y[2], drv_hp[2];
     float *cho; int cho_w; float cho_ph;
+    float *dly; int dly_w; float dly_t, dly_lp[2];        /* ECHO: two 1.1 s lines, smoothed time, repeat filters */
     char chord[32];
     uint8_t disp_vib[NSTR], disp_fret[NSTR];   /* what the page's string pictures show (s<n>_vib / s<n>_fret) */
     int rev, last_state, cur_bank, cur_choice;
@@ -675,7 +678,10 @@ static void *eng_create(const char *data_dir) {
     for (int i = 0; i < NP; i++) s->p[i] = PDEF[i];
     s->ksmem = calloc((size_t)MAX_V * KS_LEN, sizeof(float));
     s->cho = calloc(2 * 2048, sizeof(float));
-    if (!s->ksmem || !s->cho || !reverb_init(s)) { free(s->ksmem); free(s->cho); free(s->rv); free(s); return NULL; }
+    s->dly = calloc(2 * DLY_LEN, sizeof(float));
+    if (!s->ksmem || !s->cho || !s->dly || !reverb_init(s)) {
+        free(s->ksmem); free(s->cho); free(s->dly); free(s->rv); free(s); return NULL;
+    }
     for (int i = 0; i < MAX_V; i++) s->v[i].ks = s->ksmem + (size_t)i * KS_LEN;
     for (int i = 0; i < NSTR; i++) { s->str_voice[i] = -1; s->str_key[i] = -1; s->str_fret[i] = -1; }
     s->hand = 2;
@@ -690,7 +696,7 @@ static void *eng_create(const char *data_dir) {
 static void eng_destroy(void *inst) {
     inst_t *s = inst;
     banks_detach();
-    free(s->ksmem); free(s->cho); free(s->rv); free(s);
+    free(s->ksmem); free(s->cho); free(s->dly); free(s->rv); free(s);
 }
 
 static void eng_midi(void *inst, const uint8_t *msg, int len) {
@@ -746,6 +752,8 @@ static int fmt_display(inst_t *s, int i, char *buf, int n) {
     case P_GLIDE: {
         if (v <= 0.005f) return snprintf(buf, n, "OFF");
         return snprintf(buf, n, "%d ms", (int)lroundf(15.0f * powf(40.0f, v))); }
+    case P_ECHO: return v < 0.005f ? snprintf(buf, n, "OFF") : snprintf(buf, n, "%d%%", (int)lroundf(v * 100));
+    case P_ECHO_TIME: return snprintf(buf, n, "%d ms", (int)lroundf(1000.0f * 0.06f * powf(1.0f / 0.06f, v)));
     case P_B_FENV: return v < 0.005f ? snprintf(buf, n, "OFF") : snprintf(buf, n, "+%.1f OCT", 6.0f * v);
     case P_ENG_MIX: return v <= 0.005f ? snprintf(buf, n, "OFF") : snprintf(buf, n, "%d%%", (int)lroundf(v * 100));
     case P_ATTACK: case P_DECAY: case P_RELEASE: {
@@ -1049,6 +1057,11 @@ static void eng_render(void *inst, int16_t *out, int frames) {
     float cab_k = 1.0f - expf(-2 * PI_F * (9000.0f - 5500.0f * drive) / SR);      /* speaker-ish top end */
     float hp_k = 1.0f - expf(-2 * PI_F * 90.0f / SR);                            /* tighten the lows before clipping */
     float cho_rate = 2 * PI_F * 0.8f / SR, cho_depth = 0.0035f * SR * chorus, cho_base = 0.012f * SR;
+    float echo = s->p[P_ECHO];
+    float dly_target = 0.06f * powf(1.0f / 0.06f, s->p[P_ECHO_TIME]) * SR;          /* 60 ms .. 1 s */
+    if (s->dly_t <= 0) s->dly_t = dly_target;
+    float dly_fb = 0.22f + 0.5f * echo, dly_wet = 0.65f * echo;
+    float dly_lpk = 1.0f - expf(-2 * PI_F * 3200.0f / SR);                           /* each repeat a little darker */
     for (int i = 0; i < frames; i++) {
         float ch[2] = { mixL[i], mixR[i] };
         if (drive > 0.001f)
@@ -1077,6 +1090,23 @@ static void eng_render(void *inst, int16_t *out, int frames) {
                 ch[c] = ch[c] * (1.0f - 0.3f * chorus) + dl * 0.75f * chorus;
             }
             s->cho_w = (w + 1) & 2047;
+        }
+        if (echo > 0.004f) {      /* ping-pong: the left line feeds the right and back, so repeats walk across */
+            s->dly_t += 0.0005f * (dly_target - s->dly_t);           /* a moved TIME knob glides, no clicks */
+            float rp = (float)s->dly_w - s->dly_t;
+            while (rp < 0) rp += DLY_LEN;
+            int r0 = (int)rp; float fr = rp - r0;
+            int r1 = r0 + 1 < DLY_LEN ? r0 + 1 : 0;
+            float yl = s->dly[r0] + (s->dly[r1] - s->dly[r0]) * fr;
+            float yr = s->dly[DLY_LEN + r0] + (s->dly[DLY_LEN + r1] - s->dly[DLY_LEN + r0]) * fr;
+            s->dly_lp[0] += dly_lpk * (yl - s->dly_lp[0]);
+            s->dly_lp[1] += dly_lpk * (yr - s->dly_lp[1]);
+            s->dly[s->dly_w] = 0.5f * (ch[0] + ch[1]) + dly_fb * s->dly_lp[1];
+            s->dly[DLY_LEN + s->dly_w] = dly_fb * s->dly_lp[0];
+            if (++s->dly_w >= DLY_LEN) s->dly_w = 0;
+            ch[0] += dly_wet * yl; ch[1] += dly_wet * yr;
+        } else if (s->dly_lp[0] != 0 || s->dly_lp[1] != 0) {      /* switched off: forget the old repeats */
+            memset(s->dly, 0, 2 * DLY_LEN * sizeof(float)); s->dly_lp[0] = s->dly_lp[1] = 0; s->dly_t = dly_target;
         }
         float rl = 0, rr = 0;
         if (space > 0.001f) reverb_frame(s, (ch[0] + ch[1]) * 0.03f, &rl, &rr);

@@ -2,7 +2,7 @@
 
 A guitar instrument for Akai MPC OS standalone devices (native VST2, built with
 [mpc-vst-plugins](https://github.com/sd88me/mpc-vst-plugins)), with a synth layer as a twist.
-Status: **v0.5.0, testing on a device.**
+Status: **v0.6.0, testing on a device.**
 
 At its core it plays real, clean, raw recordings on a six-string playing model; drive, chorus, the pluck layer and
 the synth turn that into many more sounds without a sample library.
@@ -38,7 +38,7 @@ nothing for the picked instrument are dimmed (BLEND is the archtop's alone; NOIS
   chords together.
 - **Articulations:** SUSTAIN or PALM MUTE (also on keyswitches A♯0 / B0).
 - **PLUCK** layers a plucked-string model under the samples (off at zero). PLUCK is on the PLAY page; all four of its
-  knobs (PLUCK, RING, COLOR, DETUNE) are on LAYER A.
+  knobs (PLUCK, RING, COLOR, DETUNE) are on LAYER A, with POSITION and CAPO.
 - **GLIDE** (LAYER A): with LEGATO on, a note played while the previous one is still held slides into it, like a
   steel guitar's bar or a bent zither string. LEGATO keeps an overlapped single note on the held string.
 - **LAYER A** also has VELOCITY (how much the level follows how hard you play; the soft / hard recordings always
@@ -56,15 +56,18 @@ solo the other. **MIX A / B** (on every page) balances them while both are on: f
 both at full, fully right is B alone.
 
 ## Effects (PLAY page)
-DRIVE (an amp-style clipper, from warm to distorted), CHORUS, SPACE (room reverb), then VOLUME. Each is completely off
+DRIVE (an amp-style clipper, from warm to distorted), CHORUS, ECHO (a stereo ping-pong delay whose repeats get
+darker; ECHO TIME 60 ms to 1 s), SPACE (room reverb), then VOLUME. Each is completely off
 at zero, so the default sound is the raw recording.
 
 ## Presets
-37 starters in MPC's PRESET menu: acoustic (Clean Archtop, Acoustic Strum, Nylon-Style Soft, Front Porch, Funk
+43 starters in MPC's PRESET menu: acoustic (Clean Archtop, Acoustic Strum, Nylon-Style Soft, Front Porch, Funk
 Mutes, Ballad Strum, Lead Lines), electric (Clean Electric, Chorus Clean, Crunch, Distorted Rhythm, Electric Mutes,
 Surf-ish, Lead Drive, Volume Swells), Folk Harp, Concert Harp Glide, Strumstick Banjo-ish, Old-Time Picker, violin
 (Violin Lead, Electric Violin, Violin Pizzicato), zithers (Dan Tranh, Dan Tranh Bends, Psaltery, Bowed Psaltery),
-dulcimers (Hammered Dulcimer, Mountain Dulcimer), steel (Lap Steel, Pedal Steel Swells, Dobro Slide) and A + B sounds
+dulcimers (Hammered Dulcimer, Mountain Dulcimer), steel (Lap Steel, Pedal Steel Swells, Dobro Slide, Weissenborn
+Slide), late-80s / post-punk electrics (Chorus Wash, Bass VI Melody: play it an octave down, Cold Wave Layers,
+Post-Punk Grit, Cold Room Clean) and A + B sounds
 (Guitar + Pad, Violin + Strings Pad, Plucked Glass, Electric + Saw Lead, Synth Pluck, Synth Pad). Presets never change
 the THEME.
 
@@ -74,7 +77,7 @@ Some sounds have no free recordings that can be shared, so they are built from t
 - **Hammered Dulcimer**: the dan tranh's steel strings with a bright, doubled pluck layer (a hammered dulcimer has
   two or more strings per note).
 - **Mountain Dulcimer**: the strumstick, a close cousin, strummed.
-- **Lap Steel / Pedal Steel Swells / Dobro Slide**: the electric or the archtop with GLIDE (play legato: overlap the
+- **Lap Steel / Pedal Steel Swells / Dobro Slide / Weissenborn Slide**: the electric or the archtop with GLIDE (play legato: overlap the
   notes), vibrato and, for the pedal steel, SWELL.
 
 `tools/make_presets.py` writes `vst/presets.json`.

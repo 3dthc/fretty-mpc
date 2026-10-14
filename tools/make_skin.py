@@ -41,14 +41,15 @@ ROW_STEPPERS = [  # key, cx, cy, w, h, text size
     ("strum_mode", 785, ROW_Y + ROW_H // 2, 230, ROW_H, 15),
 ]
 COLW = 141
-PANELS = [("GUITAR", "", 8, 4), ("FX", "", 8 + 4 * COLW + 8, 2), ("LAYERS", "", 8 + 6 * COLW + 16, 1)]
+PANELS = [("GUITAR", "", 8, 3), ("FX", "", 8 + 3 * COLW + 8, 3), ("LAYERS", "", 8 + 6 * COLW + 16, 1)]
 KP_Y, KP_H = 300, 324
 KNOB_R = 44                                      # the builder's knob box is 2r + 10
 KNOB_ROWS = (404, 544)
 KNOBS = [  # panel, col, row, key, label
-    (0, 0, 0, "blend", "BLEND"), (0, 1, 0, "tone", "TONE"), (0, 2, 0, "damp", "DAMP"), (0, 3, 0, "vibrato", "VIBRATO"),
-    (0, 0, 1, "position", "POSITION"), (0, 1, 1, "capo", "CAPO"), (0, 2, 1, "strum_speed", "STRUM SPD"), (0, 3, 1, "noise", "NOISE"),
-    (1, 0, 0, "drive", "DRIVE"), (1, 1, 0, "chorus", "CHORUS"), (1, 0, 1, "space", "SPACE"), (1, 1, 1, "volume", "VOLUME"),
+    (0, 0, 0, "blend", "BLEND"), (0, 1, 0, "tone", "TONE"), (0, 2, 0, "damp", "DAMP"),
+    (0, 0, 1, "vibrato", "VIBRATO"), (0, 1, 1, "strum_speed", "STRUM SPD"), (0, 2, 1, "noise", "NOISE"),
+    (1, 0, 0, "drive", "DRIVE"), (1, 1, 0, "chorus", "CHORUS"), (1, 2, 0, "echo", "ECHO"),
+    (1, 0, 1, "space", "SPACE"), (1, 1, 1, "volume", "VOLUME"), (1, 2, 1, "echo_time", "ECHO TIME"),
     (2, 0, 0, "eng_mix", "PLUCK"), (2, 0, 1, "mix", "MIX A / B"),
 ]
 # knobs that do nothing for some instruments: drawn dimmed while one of those is picked (indexes into INSTRUMENTS)
@@ -68,7 +69,7 @@ S_STRIP = (1032, 8, 240, 616)
 WAVE_BOX = (28, 44, 260, 136)                    # the waveform / instrument picture
 PIC_STEP = (158, 236, 260, 52)                   # cx, cy, w, h: the stepper under it
 L_KNOBS = {  # key, label, cx, cy, bw
-    "A": [("tone", "TONE", 390, 150, 124), ("vibrato", "VIBRATO", 516, 150, 124),
+    "A": [("position", "POSITION", 390, 150, 124), ("capo", "CAPO", 516, 150, 124),
           ("a_vel", "VELOCITY", 666, 150, 124), ("damp", "DAMP", 806, 150, 124), ("glide", "GLIDE", 946, 150, 124),
           ("eng_mix", "PLUCK", 78, 520, 136), ("eng_sustain", "RING", 219, 520, 136), ("eng_color", "COLOR", 360, 520, 136),
           ("eng_detune", "DETUNE", 501, 520, 136),
