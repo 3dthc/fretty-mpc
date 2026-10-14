@@ -2,13 +2,14 @@
   "name": "Fretty",
   "vendor": "3dthc",
   "uid": "FrTy",
-  "version": 720,
+  "version": 800,
   "so": "fretty.so",
   "params": "params.json",
   "defines": {
     "MODULE_SUBDIR": "\"engine\"",
     "HAS_DISPLAY_REV": 1,
-    "DISPLAY_REV_NO_UPDATE": 1
+    "DISPLAY_REV_NO_UPDATE": 1,
+    "HAS_LFO_BPM": 1
   },
   "build": {
     "root": "..",

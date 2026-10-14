@@ -1,27 +1,27 @@
-# Device test (v0.7.2)
+# Device test (v0.8.0)
 
-Goal: confirm Fretty v0.7.2 builds, loads with its three pages, plays every instrument (now with the zithers), and stays light on the CPU.
+Goal: confirm Fretty v0.8.0 builds, loads with its four pages, plays every instrument (now with the zithers), and stays light on the CPU.
 
 **If you installed the earlier test build (Archtop):** remove it first (`uninstall.sh` from its zip, or the installer
 app), since Fretty is a new plugin with its own folder.
 
 ## 1. Install (Ubuntu in WSL)
-Download all three zips to your Windows **Downloads** folder: `fretty-mpc-v0.7.2.zip`, `fretty-instruments-1-v0.6.0.zip`
+Download all three zips to your Windows **Downloads** folder: `fretty-mpc-v0.8.0.zip`, `fretty-instruments-1-v0.6.0.zip`
 and `fretty-instruments-2-v0.6.0.zip` (the instruments are split only because of a download size limit; they have not
 changed since v0.6.0).
 Start Docker Desktop, then paste this one line into Ubuntu:
 
 ```sh
-rm -rf ~/fretty-mpc && python3 -m zipfile -e /mnt/c/Users/*/Downloads/fretty-mpc-v0.7.2.zip ~/ && bash ~/fretty-mpc/install.sh
+rm -rf ~/fretty-mpc && python3 -m zipfile -e /mnt/c/Users/*/Downloads/fretty-mpc-v0.8.0.zip ~/ && bash ~/fretty-mpc/install.sh
 ```
 
 `install.sh` adds the instruments from the other two zips, checks Docker and the toolchain (`~/mpc-vst-plugins`, cloned
-if missing), builds, and copies `Fretty-0.7.2-mpc-armv7.zip` into your Windows Downloads. It stops with a plain
+if missing), builds, and copies `Fretty-0.8.0-mpc-armv7.zip` into your Windows Downloads. It stops with a plain
 message if something is missing; fix that and run `bash ~/fretty-mpc/install.sh` again.
 Expected at the end of the build output:
 - `exported: VSTPluginMain`
 - `highest glibc: GLIBC_2.x` (2.31 or lower is ideal; above 2.36 would not load)
-- `dist/Fretty-0.7.2-mpc-armv7.zip`, about 68 MB
+- `dist/Fretty-0.8.0-mpc-armv7.zip`, about 68 MB
 
 The first build with the new page also downloads the toolchain's artwork renderer image (Playwright, ~1-2 GB, once).
 
@@ -65,6 +65,11 @@ Because the instrument list grew, open a fresh Fretty rather than a project save
 | 22 | Layer B | LAYER B page: B · SYNTH on, wave ◀ ▶, CUTOFF, FILTER ENV, envelope | the screen shows the wave; FILTER ENV adds a "pluck" to the synth |
 | 23 | Mix + solo | MIX A / B left, middle, right (both on); then A off, then B off | left = mostly A, middle = both full, right = mostly B; a layer alone plays at full |
 | 24 | Swell | LAYER A: SWELL up, play notes; RELEASE up | notes fade in like a volume knob; released notes ring on |
+| 24b | Chord pads | PERFORM: CHORDS Triads, KEY A, SCALE Minor; tap pads (chromatic) | each pad strums a full chord; the tiles read Am Bdim C Dm Em F G and the playing one lights |
+| 24c | Voicing / 7ths | VOICING Open / Barre / High; CHORDS 7ths | the shapes move (low and full / high and close); names show the 7ths |
+| 24d | Feel | TIMING and VELOCITY up, play a steady pattern | slightly loose, never late enough to feel off |
+| 24e | Echo sync | ECHO up on PLAY, ECHO SYNC on, turn ECHO TIME | the value reads 1/8, 1/4D...; repeats land on the beat at the project tempo |
+| 24f | Memory | Pick several instruments one after another, wait 20 s, pick another | no glitches; an instrument picked again loads again |
 | 25 | Q-Links | Each page: turn the Q-Links | they move that page's knobs |
 | 26 | Presets | PRESET menu: try several from each group | each changes the sound, never the theme |
 | 27 | CPU | Busy chords with a drive + synth preset for a minute | no crackles (`tools/bench.sh` gives the numbers) |

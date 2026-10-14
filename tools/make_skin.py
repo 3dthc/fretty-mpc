@@ -83,6 +83,16 @@ L_KNOBS = {  # key, label, cx, cy, bw
 }
 MIX_KNOB = ("mix", "MIX A / B", 1152, 520, 200)
 S_TOGGLES = [("a_on", 1048, 180, 208, 56, "A \u00b7 GUITAR"), ("b_on", 1048, 252, 208, 56, "B \u00b7 SYNTH")]
+# ---- the PERFORM page
+P_PANELS = [("CHORD PADS", 8, 8, 580, 284), ("FEEL", 596, 8, 420, 284), ("CHORDS IN KEY", 8, 300, 1008, 324)]
+P_STEPPERS = [  # key, caption, cx, cy, w, h, text size
+    ("chord_mode", "CHORDS", 158, 100, 260, 52, 19), ("chord_key", "KEY", 438, 100, 260, 52, 19),
+    ("chord_scale", "SCALE", 158, 210, 260, 52, 19), ("chord_voicing", "VOICING", 438, 210, 260, 52, 19)]
+P_KNOBS = [("hum_time", "TIMING", 666, 150, 124), ("hum_vel", "VELOCITY", 806, 150, 124)]
+P_TOGGLE = ("echo_sync", 891, 124, 110, 52, "SYNC")       # key, x, y, w, h, label (the column at x 946)
+TILE = dict(x0=27, y=352, w=130, h=214, gap=10)         # the seven chord tiles
+NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII"]
+
 INST_INFO = [  # subtitle, strings drawn (h = harp, z = zither, p = psaltery), bow drawn
     ("ARCHTOP \u00b7 PICKUP + MIC", 6, 0), ("SOLID BODY \u00b7 DIRECT", 6, 0), ("PLUCKED \u00b7 STEREO", "h", 0),
     ("PEDAL HARP \u00b7 STEREO", "h", 0), ("THREE STRINGS \u00b7 BANJO-ISH", 3, 0),
@@ -298,6 +308,47 @@ function layerBackground(name, which) {
     text(label, cx, cy - 54, 16, '#efe9d8', { align: 'center', weight: 800, ls: 1.4, maxw: 118 });
   return cv.toDataURL('image/png');
 }
+// ---------- the PERFORM page background (one per theme) ----------
+function tileRect(i) { const T = TILE_JSON; return [T.x0 + i * (T.w + T.gap), T.y, T.w, T.h]; }
+function performBackground(name) {
+  const t = T[name], W = 1280, H = 628; setup(W, H);
+  const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, t.bg1); g.addColorStop(1, t.bg2); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  noise(t, W, H);
+  for (const [title, x, y, w, h] of PERF_PANELS) { panel(t, x, y, w, h); text(title, x + 20, y + 25, 15, t.title, { weight: 800, ls: 2.6 }); }
+  for (const [key, cap, cx, cy, w, h] of PERF_STEPPERS) {
+    text(cap, cx, cy - h / 2 - 14, 14, t.chassisText, { weight: 800, ls: 2.8, align: 'center' });
+    arrowPlates(w, h, cx - w / 2, cy - h / 2);
+  }
+  text('EVERY PAD PLAYS THE CHORD OF ITS NOTE IN THIS KEY', 298, 276, 11.5, t.chassisText, { weight: 700, ls: 1.2, align: 'center', maxw: 540 });
+  for (const [key, label, cx, cy] of PERF_KNOBS) text(label, cx, cy - 54, 16, '#efe9d8', { align: 'center', weight: 800, ls: 1.4, maxw: 118 });
+  { const [key, x, y, w, h] = PERF_TOGGLE;
+    text('ECHO', x + w / 2, y - 26, 16, '#efe9d8', { align: 'center', weight: 800, ls: 1.4 });
+    text('ON THE BEAT', x + w / 2, y + h + 30, 11.5, t.chassisText, { align: 'center', weight: 700, ls: 1.2 }); }
+  // the chord tiles: numeral on top, the chord's name is MPC's live text in the middle
+  for (let i = 0; i < 7; i++) {
+    const [x, y, w, h] = tileRect(i);
+    rrect(x, y, w, h, 12); const tg = ctx.createLinearGradient(0, y, 0, y + h); tg.addColorStop(0, '#161616'); tg.addColorStop(1, '#0c0c0c');
+    ctx.fillStyle = tg; ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1; ctx.stroke();
+    text(NUMERALS_JSON[i], x + w / 2, y + 40, 22, t.title, { align: 'center', weight: 800, ls: 1 });
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(x + 16, y + 56, w - 32, 1);
+  }
+  text('SET THE PADS TO CHROMATIC, OR TO THIS SCALE: A NOTE BETWEEN TWO DEGREES PLAYS THE LOWER ONE', 512, 604, 11.5, t.chassisText,
+       { weight: 700, ls: 1.1, align: 'center', maxw: 960 });
+  const [sx, sy, sw, sh] = SYNTH_COLUMN_DATA; panel(t, sx, sy, sw, sh);
+  wordPlate(sx + 14, sy + 14, sw - 28, sh - 28, 92);
+  return cv.toDataURL('image/png');
+}
+// the tile lit for the chord playing (frame 0: none, 1-7: that degree)
+function chordLitStrip() {
+  const T = TILE_JSON, W = 7 * T.w + 6 * T.gap + 16, H = T.h + 16; setup(W * 8, H);
+  for (let f = 1; f < 8; f++) {
+    const [x0] = tileRect(0), [x, y, w, h] = tileRect(f - 1), ox = f * W + (x - x0) + 8;
+    ctx.save(); ctx.shadowColor = 'rgba(255,170,90,0.75)'; ctx.shadowBlur = 14;
+    rrect(ox, 8, w, h, 12); ctx.strokeStyle = '#ff9a3c'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.restore();
+    rrect(ox, 8, w, h, 12); ctx.fillStyle = 'rgba(255,140,40,0.13)'; ctx.fill();
+  }
+  return cv.toDataURL('image/png');
+}
 function stringIcon(x, y, w, h, color) {     // a plucked string ringing down
   ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2.2; ctx.globalAlpha = 0.85; ctx.beginPath();
   for (let i = 0; i <= 500; i++) { const u = i / 500, e = Math.exp(-u * 3.2), yy = y + h / 2 - Math.sin(u * 62) * e * h * 0.45;
@@ -497,7 +548,7 @@ function arrowPlates(w, h, ox, oy) {
   ctx.restore();
 }
 const COLW = COLW_JSON, KP_Y = KP_Y_JSON, KP_H = KP_H_JSON, METER_X0 = METER_X0_JSON;
-window.API = { arrowPlates, background, layerBackground, wavePicture, instPicture, loadStrip, toggleImage, knobStrip, vibStrip, fretStrip, meterBox };
+window.API = { arrowPlates, background, layerBackground, performBackground, chordLitStrip, wavePicture, instPicture, loadStrip, toggleImage, knobStrip, vibStrip, fretStrip, meterBox };
 </script></body></html>"""
 
 
@@ -519,6 +570,8 @@ def main():
         "MIX_KNOB_JSON": json.dumps(MIX_KNOB), "SYNTH_COLUMN_DATA": json.dumps(S_STRIP), "WAVE_BOX_JSON": json.dumps(WAVE_BOX),
         "PIC_STEP_JSON": json.dumps(PIC_STEP), "INST_INFO_JSON": json.dumps(INST_INFO),
         "INST_NAMES_JSON": json.dumps(INSTRUMENTS),
+        "PERF_PANELS": json.dumps(P_PANELS), "PERF_STEPPERS": json.dumps(P_STEPPERS), "PERF_KNOBS": json.dumps(P_KNOBS),
+        "PERF_TOGGLE": json.dumps(P_TOGGLE), "TILE_JSON": json.dumps(TILE), "NUMERALS_JSON": json.dumps(NUMERALS),
         "KNOB_LABELS_JSON": json.dumps([list(knob_xy(p_, c, r)) + [lab] for p_, c, r, k, lab in KNOBS]),
     }
     page_src = PAGE
@@ -540,7 +593,8 @@ def main():
             save(pg.evaluate("API.background(%r)" % th), os.path.join(ART, th, "bg.png"))
             for which in ("A", "B"):
                 save(pg.evaluate("API.layerBackground(%r, %r)" % (th, which)), os.path.join(ART, th, "layer%s_bg.png" % which.lower()))
-            for key, x, y, w, h, label in TOGGLES + S_TOGGLES:
+            save(pg.evaluate("API.performBackground(%r)" % th), os.path.join(ART, th, "perform_bg.png"))
+            for key, x, y, w, h, label in TOGGLES + S_TOGGLES + [P_TOGGLE]:
                 for on in (0, 1):
                     save(pg.evaluate("API.toggleImage(%r, %d, %d, %s, %s)" % (th, w, h, json.dumps(label), "true" if on else "false")),
                          os.path.join(ART, th, "%s_%s.png" % (key, "on" if on else "off")))
@@ -551,6 +605,7 @@ def main():
         for k in range(len(INSTRUMENTS)):
             save(pg.evaluate("API.instPicture(%d, %d, %d)" % (k, WAVE_BOX[2], WAVE_BOX[3])), os.path.join(ART, "inst_%d.png" % k))
         save(pg.evaluate("API.loadStrip(%d, %d)" % (LOAD_BOX[2], LOAD_BOX[3])), os.path.join(ART, "loading.png"))
+        save(pg.evaluate("API.chordLitStrip()"), os.path.join(ART, "chord_lit.png"))
         boxes = []
         for i in range(6):
             save(pg.evaluate("API.vibStrip(%d)" % i), os.path.join(ART, "s%d_vib.png" % (i + 1)))
@@ -641,6 +696,23 @@ def write_layout(boxes):
         key, label, cx, cy, bw = MIX_KNOB
         knob(cx, cy, key, label, bw)
         L.append('qlinks "LAYER %s" = ' % which + ",".join([k[0] for k in L_KNOBS[which]] + ["mix"]))
+    # ---- PERFORM
+    L.append("[tab PERFORM]")
+    for i, th in enumerate(THEMES):
+        L.append("art file=art/%s/perform_bg.png x=0 y=%d w=1280 h=628 fit=stretch when=theme:%d" % (th, Y_OFF, i))
+    gw, gh = 7 * TILE["w"] + 6 * TILE["gap"] + 16, TILE["h"] + 16       # the lit-tile strip, 8 px margin all round
+    L.append("meter cx=%d cy=%d w=%d h=%d key=chord_deg strip=art/chord_lit.png frames=8" % (
+        TILE["x0"] - 8 + gw // 2, TILE["y"] - 8 + gh // 2 + Y_OFF, gw, gh))
+    for i in range(7):
+        x = TILE["x0"] + i * (TILE["w"] + TILE["gap"])
+        L.append('readout cx=%d cy=%d w=%d h=60 label="" key=chord_%d box=0 tsize=24 tweight=bold tcolor=f3ecdc talign=center' % (
+            x + TILE["w"] // 2, TILE["y"] + 128 + Y_OFF, TILE["w"] - 12, i + 1))
+    for key, cap, cx, cy, w, h, ts in P_STEPPERS:
+        stepper(key, cx, cy, w, h, ts)
+    for key, label, cx, cy, bw in P_KNOBS:
+        knob(cx, cy, key, label, bw)
+    toggles([P_TOGGLE])
+    L.append('qlinks "PERFORM" = ' + ",".join([k[0] for k in P_STEPPERS] + [k[0] for k in P_KNOBS] + ["echo_sync"]))
     open(os.path.join(VST, "layout.conf"), "w").write("\n".join(L) + "\n")
     css = os.path.join(VST, "skin.css")
     if not os.path.exists(css):

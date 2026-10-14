@@ -79,6 +79,20 @@ int main(int argc, char **argv) {
         }
         goto run;
     }
+    if (argc > 3 && !strcmp(argv[3], "chords")) {     /* chord pads: one note per chord, A minor, three voicings */
+        prm(0, "chord_mode", "1"); prm(0, "chord_key", "9"); prm(0, "chord_scale", "1");
+        prm(0, "strum_mode", "3"); prm(0, "strum_speed", "0.35"); prm(0, "space", "0.3");
+        prm(0, "hum_time", "0.5"); prm(0, "hum_vel", "0.4");
+        int prog[] = { 57, 65, 60, 67 };                                  /* i - VI - III - VII: Am F C G */
+        for (int v = 0; v < 3; v++) {
+            char vs[8]; snprintf(vs, sizeof vs, "%d", v); prm(t, "chord_voicing", vs);
+            if (v == 2) { prm(t, "chord_mode", "2"); prm(t, "instrument", "1"); prm(t, "chorus", "0.6");
+                          prm(t, "echo", "0.3"); prm(t, "echo_sync", "1"); prm(t, "echo_time", "0.45"); }
+            for (int q = 0; q < 4; q++) for (int r = 0; r < 4; r++) { note(t, 0.32, prog[q], 85 + (r == 0) * 25); t += 0.3; }
+            t += 0.6;
+        }
+        goto run;
+    }
     if (argc > 3 && !strcmp(argv[3], "strum")) {      /* strum modes: down, up, alternate */
         for (int m = 1; m <= 3; m++) {
             char mv[16]; snprintf(mv, sizeof mv, "%d", m);

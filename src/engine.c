@@ -46,7 +46,7 @@ enum { ZT_NOTE = 0, ZT_RELEASE = 1, ZT_NOISE = 2 };
 typedef struct { uint32_t off, frames; } ent_t;
 typedef struct __attribute__((packed)) { uint8_t type, lo, hi, root, lv, hv, nrr, pad; uint16_t rr[MAX_RR]; } zone_t;
 
-enum { BANK_NONE, BANK_LOADING, BANK_READY, BANK_FAILED };
+enum { BANK_NONE, BANK_LOADING, BANK_READY, BANK_FAILED, BANK_RETIRING };
 enum { FLAG_DUAL = 1, FLAG_MONO = 2, FLAG_BOWED = 4 };
 #define NINST 8                     /* sample files */
 static const char *INST_FILE[NINST] = { "acoustic", "electric", "folkharp", "concertharp", "strumstick", "violin",
@@ -68,6 +68,10 @@ typedef struct {
 } bank_t;
 
 static bank_t g_banks[NINST];
+static int g_shutdown;               /* the last instance is going: loaders stop what they are doing */
+static int g_bank_users[NINST];      /* instances that have the instrument picked */
+static double g_bank_idle[NINST];    /* when the last of them moved on (monotonic seconds) */
+static double now_s(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec + t.tv_nsec * 1e-9; }
 static int g_users;                 /* live instances in this process */
 static char g_data_dir[1024];
 static pthread_mutex_t g_bank_mx = PTHREAD_MUTEX_INITIALIZER;
@@ -129,8 +133,52 @@ static int decode_channel(const uint8_t *src, size_t len, int16_t *dst, uint32_t
     return b.pos <= len + 8 ? 0 : -1;
 }
 
+static void bank_free_data(bank_t *b) {
+    free(b->map);
+    if (b->own_tables) { free((void *)b->ent); free((void *)b->zone); free((void *)b->loop); }
+    free(b->head); free(b->hoff); free(b->hlen);
+    b->map = NULL; b->ent = NULL; b->zone = NULL; b->loop = NULL; b->head = NULL; b->hoff = b->hlen = NULL;
+    b->own_tables = 0;
+}
+
+/* Memory: before a new instrument loads, give back the ones no Fretty has picked for a while (their last notes long
+ * gone). A retiring bank is unplayable at once (voices on it stop at their next block), and is freed only a second
+ * later, so no audio thread can still be reading it. */
+#ifndef BANK_IDLE_S
+#define BANK_IDLE_S 20.0
+#endif
+static int lock_unless_shutdown(void) {   /* the last instance's destroy holds the lock while it joins loaders */
+    while (pthread_mutex_trylock(&g_bank_mx)) {
+        if (__atomic_load_n(&g_shutdown, __ATOMIC_ACQUIRE)) return 0;
+        usleep(2000);
+    }
+    return 1;
+}
+
+static void release_idle_banks(int except) {
+    for (int i = 0; i < NINST; i++) {
+        if (i == except) continue;
+        if (!lock_unless_shutdown()) return;
+        int go = g_banks[i].state == BANK_READY && __atomic_load_n(&g_bank_users[i], __ATOMIC_ACQUIRE) == 0 &&
+                 now_s() - g_bank_idle[i] > BANK_IDLE_S;
+        if (go) __atomic_store_n(&g_banks[i].state, BANK_RETIRING, __ATOMIC_RELEASE);
+        pthread_mutex_unlock(&g_bank_mx);
+        if (!go) continue;
+        for (int w = 0; w < 50 && !__atomic_load_n(&g_shutdown, __ATOMIC_ACQUIRE); w++) usleep(20000);
+        if (!lock_unless_shutdown()) return;
+        if (__atomic_load_n(&g_bank_users[i], __ATOMIC_ACQUIRE) == 0 && !g_banks[i].stop) {
+            bank_t *b = &g_banks[i];
+            if (b->have_loader) { pthread_join(b->loader, NULL); b->have_loader = 0; }
+            bank_free_data(b);
+            __atomic_store_n(&b->state, BANK_NONE, __ATOMIC_RELEASE);      /* picked again: it loads again */
+        } else __atomic_store_n(&g_banks[i].state, BANK_READY, __ATOMIC_RELEASE);
+        pthread_mutex_unlock(&g_bank_mx);
+    }
+}
+
 static void *loader_main(void *arg) {
     bank_t *b = arg;
+    release_idle_banks((int)(b - g_banks));
     FILE *f = fopen(b->path, "rb");
     long size = 0;
     if (!f || fseek(f, 0, SEEK_END) || (size = ftell(f)) < 28 || fseek(f, 0, SEEK_SET)) goto fail;
@@ -212,6 +260,7 @@ static void bank_request(int i) {
     pthread_mutex_lock(&g_bank_mx);
     bank_t *b = &g_banks[i];
     if (b->state == BANK_NONE) {
+        if (b->have_loader) pthread_join(b->loader, NULL);      /* a retired bank's old loader thread */
         memset(b, 0, sizeof *b);
         snprintf(b->path, sizeof b->path, "%s/%s.smp", g_data_dir, INST_FILE[i]);
         b->state = BANK_LOADING;
@@ -223,16 +272,18 @@ static void bank_request(int i) {
 
 static void banks_detach(void) {
     pthread_mutex_lock(&g_bank_mx);
-    if (--g_users == 0)
+    if (--g_users == 0) {
+        __atomic_store_n(&g_shutdown, 1, __ATOMIC_RELEASE);   /* a loader busy releasing banks gives up the lock */
+        for (int i = 0; i < NINST; i++) g_banks[i].stop = 1;
         for (int i = 0; i < NINST; i++) {
             bank_t *b = &g_banks[i];
-            b->stop = 1;
             if (b->have_loader) pthread_join(b->loader, NULL);
-            free(b->map);
-            if (b->own_tables) { free((void *)b->ent); free((void *)b->zone); free((void *)b->loop); }
-            free(b->head); free(b->hoff); free(b->hlen);
+            bank_free_data(b);
             memset(b, 0, sizeof *b);
+            g_bank_users[i] = 0;
         }
+        __atomic_store_n(&g_shutdown, 0, __ATOMIC_RELEASE);
+    }
     pthread_mutex_unlock(&g_bank_mx);
 }
 
@@ -247,7 +298,8 @@ enum {
     P_ENG_MIX, P_ENG_COLOR, P_ENG_SUSTAIN, P_ENG_DETUNE, P_SPACE, P_VOLUME, P_THEME,
     P_INSTRUMENT, P_DRIVE, P_CHORUS, P_A_ON, P_B_ON, P_A_LEVEL, P_B_LEVEL,
     P_WAVE, P_OCTAVE, P_SYN_DETUNE, P_CUTOFF, P_RESO, P_ATTACK, P_DECAY, P_SUSTAIN, P_RELEASE,
-    P_STRUM_MODE, P_MIX, P_A_ATTACK, P_A_RELEASE, P_A_VEL, P_B_VEL, P_B_FENV, P_GLIDE, P_ECHO, P_ECHO_TIME, NP
+    P_STRUM_MODE, P_MIX, P_A_ATTACK, P_A_RELEASE, P_A_VEL, P_B_VEL, P_B_FENV, P_GLIDE, P_ECHO, P_ECHO_TIME,
+    P_CHORD_MODE, P_CHORD_KEY, P_CHORD_SCALE, P_CHORD_VOICING, P_HUM_TIME, P_HUM_VEL, P_ECHO_SYNC, NP
 };
 /* P_STRUM, P_ENGINE, P_A_LEVEL and P_B_LEVEL are kept (parameter order is fixed) but no longer used: STRUM MODE,
  * the PLUCK level (on above zero) and MIX replace them. */
@@ -257,7 +309,8 @@ static const char *PKEY[NP] = {
     "eng_mix", "eng_color", "eng_sustain", "eng_detune", "space", "volume", "theme",
     "instrument", "drive", "chorus", "a_on", "b_on", "a_level", "b_level",
     "wave", "octave", "syn_detune", "cutoff", "resonance", "attack", "decay", "sustain", "release",
-    "strum_mode", "mix", "a_attack", "a_release", "a_vel", "b_vel", "b_fenv", "glide", "echo", "echo_time"
+    "strum_mode", "mix", "a_attack", "a_release", "a_vel", "b_vel", "b_fenv", "glide", "echo", "echo_time",
+    "chord_mode", "chord_key", "chord_scale", "chord_voicing", "hum_time", "hum_vel", "echo_sync"
 };
 static const float PDEF[NP] = {
     0.35f, 1.0f, 0.0f, 0.0f, 0, 0, 0.35f, 0.55f,
@@ -265,7 +318,8 @@ static const float PDEF[NP] = {
     0.0f, 0.55f, 0.60f, 0.25f, 0.0f, 0.80f, 0,
     0, 0, 0, 1, 0, 0.80f, 0.50f,
     2, 0, 0.15f, 0.60f, 0.15f, 0.02f, 0.40f, 0.60f, 0.30f,
-    1, 0.5f, 0, 0, 1.0f, 0.65f, 0, 0, 0, 0.6f
+    1, 0.5f, 0, 0, 1.0f, 0.65f, 0, 0, 0, 0.6f,
+    0, 0, 0, 0, 0, 0, 0
 };
 static const int OPEN[NSTR] = { 40, 45, 50, 55, 59, 64 };
 static const char *NOTE_NAME[12] = { "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B" };
@@ -323,6 +377,11 @@ typedef struct {
     int rev, last_state, cur_bank, cur_choice;
     double clock;                    /* seconds of audio rendered */
     double last_strum; int strum_up;
+    float bpm;                       /* the host's tempo (vst.json HAS_LFO_BPM sends "lfo_bpm"); 0 = not known */
+    /* chord pads: what each pad key is playing, and how many held pads use each chord note */
+    uint8_t pad_notes[128][6], pad_n[128], note_ref[128];
+    int chord_deg;                   /* the degree (1-7) last played, 0 = none: lights the PERFORM page's tile */
+    int bank_held;                   /* the bank this instance holds a "use" on (memory release), -1 none */
 } inst_t;
 
 static uint32_t rnd(inst_t *s) { s->rng ^= s->rng << 13; s->rng ^= s->rng >> 17; s->rng ^= s->rng << 5; return s->rng; }
@@ -590,11 +649,89 @@ static void name_chord(inst_t *s) {
     s->rev++;
 }
 
+/* ---------- chord pads: every note plays the chord of its degree in KEY / SCALE ---------- */
+static const int SCALES[6][7] = {
+    { 0, 2, 4, 5, 7, 9, 11 },     /* major */
+    { 0, 2, 3, 5, 7, 8, 10 },     /* natural minor */
+    { 0, 2, 3, 5, 7, 9, 10 },     /* dorian */
+    { 0, 2, 4, 5, 7, 9, 10 },     /* mixolydian */
+    { 0, 2, 3, 5, 7, 8, 11 },     /* harmonic minor */
+    { 0, 1, 3, 5, 7, 8, 10 },     /* phrygian */
+};
+static int chord_scale(const inst_t *s) { int k = (int)lroundf(s->p[P_CHORD_SCALE]); return k < 0 ? 0 : k > 5 ? 5 : k; }
+static int chord_key(const inst_t *s) { int k = (int)lroundf(s->p[P_CHORD_KEY]); return ((k % 12) + 12) % 12; }
+
+/* the intervals above the root of degree d (0-6): third, fifth, seventh */
+static void degree_tones(const inst_t *s, int d, int *t3, int *t5, int *t7) {
+    const int *sc = SCALES[chord_scale(s)];
+    int r = sc[d];
+    *t3 = (sc[(d + 2) % 7] - r + 12) % 12;
+    *t5 = (sc[(d + 4) % 7] - r + 12) % 12;
+    *t7 = (sc[(d + 6) % 7] - r + 12) % 12;
+}
+
+static int degree_name(const inst_t *s, int d, char *buf, int n) {
+    int t3, t5, t7;
+    degree_tones(s, d, &t3, &t5, &t7);
+    const char *root = NOTE_NAME[(chord_key(s) + SCALES[chord_scale(s)][d]) % 12];
+    const char *q;
+    if ((int)lroundf(s->p[P_CHORD_MODE]) == 2) {
+        q = t3 == 4 && t5 == 7 && t7 == 11 ? "maj7" : t3 == 4 && t5 == 7 && t7 == 10 ? "7" : t3 == 3 && t5 == 7 && t7 == 10 ? "m7"
+          : t3 == 3 && t5 == 7 && t7 == 11 ? "m(maj7)" : t3 == 3 && t5 == 6 && t7 == 10 ? "m7b5" : t3 == 3 && t5 == 6 && t7 == 9 ? "dim7"
+          : t3 == 4 && t5 == 8 ? "+maj7" : "7";
+    } else
+        q = t3 == 4 && t5 == 7 ? "" : t3 == 3 && t5 == 7 ? "m" : t3 == 3 && t5 == 6 ? "dim" : t3 == 4 && t5 == 8 ? "aug" : "";
+    return snprintf(buf, n, "%s%s", root, q);
+}
+
+/* key -> the chord's notes as a guitarist would voice them; returns how many (and the degree, 1-7) */
+static int chord_for(inst_t *s, int key, int *out, int *deg) {
+    const int *sc = SCALES[chord_scale(s)];
+    int pc = ((key - chord_key(s)) % 12 + 12) % 12, d = 0;
+    for (int i = 0; i < 7; i++) if (sc[i] <= pc) d = i;           /* a note between two degrees takes the lower one */
+    int t3, t5, t7, sev = (int)lroundf(s->p[P_CHORD_MODE]) == 2;
+    degree_tones(s, d, &t3, &t5, &t7);
+    int rpc = (chord_key(s) + sc[d]) % 12;
+    int voicing = (int)lroundf(s->p[P_CHORD_VOICING]), n = 0;
+    *deg = d + 1;
+    if (voicing == 1) {                     /* BARRE: six strings, the root on the low E string (frets 0-11) */
+        int r = 40 + ((rpc - 4 + 12) % 12);
+        int v[6] = { r, r + t5, sev ? r + t7 : r + 12, r + 12 + t3, r + 12 + t5, r + 24 };
+        for (int i = 0; i < 6; i++) out[n++] = v[i];
+    } else if (voicing == 2) {              /* HIGH: a close voicing on the top strings */
+        int tones[4] = { 0, t3, t5, t7 }, c = sev ? 4 : 3;
+        for (int i = 0; i < c; i++) { int x = 60 + ((rpc + tones[i]) % 12); out[n++] = x < 62 ? x + 12 : x; }
+    } else {                                /* OPEN: five strings, the root on the A string */
+        int r = 45 + ((rpc - 9 + 12) % 12);
+        int v[5] = { r, r + t5, sev ? r + t7 : r + 12, r + 12 + t3, r + 12 + t5 };
+        for (int i = 0; i < 5; i++) out[n++] = v[i];
+    }
+    for (int i = 0; i < n; i++) if (out[i] > 100) out[i] -= 12;
+    for (int i = 1; i < n; i++)                                   /* low to high: one string each, in order */
+        for (int j = i; j > 0 && out[j - 1] > out[j]; j--) { int t = out[j]; out[j] = out[j - 1]; out[j - 1] = t; }
+    (void)key;
+    return n;
+}
+
+/* ECHO SYNC: the TIME knob steps through note lengths at the host's tempo */
+static const float ECHO_BEATS[12] = { 0.125f, 1.0f / 6, 0.25f, 1.0f / 3, 0.375f, 0.5f, 2.0f / 3, 0.75f, 1.0f, 4.0f / 3, 1.5f, 2.0f };
+static const char *ECHO_DIV[12] = { "1/32", "1/16T", "1/16", "1/8T", "1/16D", "1/8", "1/4T", "1/8D", "1/4", "1/2T", "1/4D", "1/2" };
+static int echo_div(const inst_t *s) { int k = (int)(s->p[P_ECHO_TIME] * 12); return k < 0 ? 0 : k > 11 ? 11 : k; }
+static float echo_seconds(const inst_t *s) {
+    if (s->p[P_ECHO_SYNC] > 0.5f) {
+        float bpm = s->bpm > 0 ? s->bpm : 120.0f;
+        float t = ECHO_BEATS[echo_div(s)] * 60.0f / bpm;
+        while (t > 1.05f) t *= 0.5f;                                  /* past the line's length: the half */
+        return t;
+    }
+    return 0.06f * powf(1.0f / 0.06f, s->p[P_ECHO_TIME]);
+}
+
 /* ---------- note batches: string assignment + strum ---------- */
 static int cmp_key(const void *a, const void *b) { return ((const pend_t *)a)->key - ((const pend_t *)b)->key; }
 static int cmp_str(const void *a, const void *b) { return ((const pend_t *)a)->str - ((const pend_t *)b)->str; }
 
-static void play_batch(inst_t *s, pend_t *pd, int n) {
+static void play_batch(inst_t *s, pend_t *pd, int n, int chord_pad) {
     if (!n) return;
     qsort(pd, n, sizeof *pd, cmp_key);
     int used = 0;
@@ -616,6 +753,15 @@ static void play_batch(inst_t *s, pend_t *pd, int n) {
     for (int i = 0; i < n; i++) {
         int best = -1, bfret = 0;
         float bs = 1e9f;
+        if (pd[i].str >= 0) {          /* a chord pad's shape names the string: keep it if the fret is on the neck */
+            int st = pd[i].str, fr = pd[i].key - open_note(s, st);
+            if (st < NSTR && !(used & (1 << st)) && fr >= 0 && fr <= (st == NSTR - 1 ? 24 : 17)) {
+                used |= 1 << st; pd[i].fret = fr;
+                if (fr > 0) { fsum += fr; fcount++; }
+                continue;
+            }
+            pd[i].str = -1;
+        }
         if (keep_str >= 0) {
             best = keep_str; bfret = pd[0].key - open_note(s, keep_str);
             used |= 1 << best; pd[i].str = best; pd[i].fret = bfret;
@@ -658,17 +804,21 @@ static void play_batch(inst_t *s, pend_t *pd, int n) {
         if (up) for (int i = 0; i < n / 2; i++) { pend_t t = pd[i]; pd[i] = pd[n - 1 - i]; pd[n - 1 - i] = t; }
     }
     float gap = (0.004f + 0.036f * s->p[P_STRUM_SPEED]) * SR * (up ? 0.8f : 1.0f);
+    float ht = s->p[P_HUM_TIME], hv = s->p[P_HUM_VEL];
+    int batch_lag = ht > 0.005f ? (int)(frnd(s) * ht * 0.018f * SR) : 0;     /* HUMANIZE: the whole hit a little late */
     for (int i = 0; i < n; i++) {
         int delay = strum ? (int)(i * gap) : 0;
+        if (ht > 0.005f) delay += batch_lag + (strum ? (int)(frnd(s) * ht * 0.35f * gap) : 0);   /* and each string */
         int vel = pd[i].vel;
         if (strum) { if (up) vel = vel * 85 / 100; vel -= i * 3; if (vel < 1) vel = 1; }
+        if (hv > 0.005f) { vel += (int)lroundf((frnd(s) * 2 - 1) * hv * 22); vel = vel < 1 ? 1 : vel > 127 ? 127 : vel; }
         start_note(s, pd[i].key, vel, pd[i].str, pd[i].fret, delay, n == 1);
         if (pd[i].off) {
             int vi = s->str_voice[pd[i].str];
             if (vi >= 0) release_voice(s, &s->v[vi]);
         }
     }
-    name_chord(s);
+    if (!chord_pad) name_chord(s);      /* a chord pad already named its chord */
 }
 
 /* ---------- engine API ---------- */
@@ -687,14 +837,24 @@ static void *eng_create(const char *data_dir) {
     s->hand = 2;
     s->rng = 0x9E3779B9u ^ (uint32_t)(uintptr_t)s;
     s->last_state = -1;
+    s->bank_held = -1;
     snprintf(s->chord, sizeof s->chord, "-");
     banks_attach(data_dir);
     bank_request(0);
     return s;
 }
 
+static void bank_hold(inst_t *s, int bank) {    /* this instance has `bank` picked (memory release counts these) */
+    if (s->bank_held == bank) return;
+    if (s->bank_held >= 0 && __atomic_sub_fetch(&g_bank_users[s->bank_held], 1, __ATOMIC_ACQ_REL) == 0)
+        g_bank_idle[s->bank_held] = now_s();
+    if (bank >= 0) __atomic_add_fetch(&g_bank_users[bank], 1, __ATOMIC_ACQ_REL);
+    s->bank_held = bank;
+}
+
 static void eng_destroy(void *inst) {
     inst_t *s = inst;
+    bank_hold(s, -1);
     banks_detach();
     free(s->ksmem); free(s->cho); free(s->dly); free(s->rv); free(s);
 }
@@ -713,6 +873,7 @@ static int find_key(const char *key) {
 
 static void eng_set_param(void *inst, const char *key, const char *val) {
     inst_t *s = inst;
+    if (!strcmp(key, "lfo_bpm")) { float b = (float)atof(val); if (b > 20 && b < 400) { s->bpm = b; s->rev++; } return; }
     int i = find_key(key);
     if (i < 0) return;
     float x = (float)atof(val);
@@ -753,7 +914,11 @@ static int fmt_display(inst_t *s, int i, char *buf, int n) {
         if (v <= 0.005f) return snprintf(buf, n, "OFF");
         return snprintf(buf, n, "%d ms", (int)lroundf(15.0f * powf(40.0f, v))); }
     case P_ECHO: return v < 0.005f ? snprintf(buf, n, "OFF") : snprintf(buf, n, "%d%%", (int)lroundf(v * 100));
-    case P_ECHO_TIME: return snprintf(buf, n, "%d ms", (int)lroundf(1000.0f * 0.06f * powf(1.0f / 0.06f, v)));
+    case P_ECHO_TIME:
+        if (s->p[P_ECHO_SYNC] > 0.5f) return snprintf(buf, n, "%s", ECHO_DIV[echo_div(s)]);
+        return snprintf(buf, n, "%d ms", (int)lroundf(1000.0f * 0.06f * powf(1.0f / 0.06f, v)));
+    case P_HUM_TIME: return v < 0.005f ? snprintf(buf, n, "OFF") : snprintf(buf, n, "%d ms", (int)lroundf(v * 18));
+    case P_HUM_VEL: return v < 0.005f ? snprintf(buf, n, "OFF") : snprintf(buf, n, "+/-%d", (int)lroundf(v * 22));
     case P_B_FENV: return v < 0.005f ? snprintf(buf, n, "OFF") : snprintf(buf, n, "+%.1f OCT", 6.0f * v);
     case P_ENG_MIX: return v <= 0.005f ? snprintf(buf, n, "OFF") : snprintf(buf, n, "%d%%", (int)lroundf(v * 100));
     case P_ATTACK: case P_DECAY: case P_RELEASE: {
@@ -772,6 +937,11 @@ static int eng_get_param(void *inst, const char *key, char *buf, int n) {
     if (!strcmp(key, "status"))
         return snprintf(buf, n, "%s", st == BANK_READY ? "READY" : st == BANK_FAILED ? "SAMPLES MISSING" : "LOADING...");
     if (!strcmp(key, "chord")) return snprintf(buf, n, "%s", s->chord);
+    if (!strncmp(key, "chord_", 6) && key[6] >= '1' && key[6] <= '7' && !key[7]) {
+        if ((int)lroundf(s->p[P_CHORD_MODE]) == 0) return snprintf(buf, n, " ");
+        return degree_name(s, key[6] - '1', buf, n);
+    }
+    if (!strcmp(key, "chord_deg")) return snprintf(buf, n, "%d", (int)lroundf(s->p[P_CHORD_MODE]) ? s->chord_deg : 0);
     if (!strcmp(key, "load_state")) return snprintf(buf, n, "%d", st == BANK_READY ? 0 : st == BANK_FAILED ? 2 : 1);
     if (key[0] == 's' && key[1] >= '1' && key[1] <= '6' && key[2] == '_') {
         int st = key[1] - '1';
@@ -797,11 +967,33 @@ static void all_off(inst_t *s, int hard) {
         if (hard) choke(&s->v[i], 5); else release_voice(s, &s->v[i]);
     }
     memset(s->key_down, 0, sizeof s->key_down);
+    memset(s->pad_n, 0, sizeof s->pad_n); memset(s->note_ref, 0, sizeof s->note_ref); s->chord_deg = 0;
+}
+
+/* one note of a chord (or a plain key) lets go: pending in this block, or sounding */
+static void note_off(inst_t *s, int key, pend_t *pd, int np) {
+    for (int i = 0; i < np; i++) if (pd[i].key == key && !pd[i].off) { pd[i].off = 1; return; }
+    for (int i = 0; i < MAX_V; i++) {
+        voice_t *v = &s->v[i];
+        if (v->on && v->kind == VK_NOTE && v->key == key && v->held) release_voice(s, v);
+    }
+}
+
+/* a chord pad lets go: each of its notes stops once no other held pad still uses it */
+static void release_pad(inst_t *s, int pad, pend_t *pd, int np) {
+    for (int k = 0; k < s->pad_n[pad]; k++) {
+        int x = s->pad_notes[pad][k];
+        if (s->note_ref[x] && --s->note_ref[x] == 0) note_off(s, x, pd, np);
+    }
+    s->pad_n[pad] = 0;
+    int any = 0;
+    for (int k = 0; k < 128; k++) if (s->pad_n[k]) any = 1;
+    if (!any && s->chord_deg) { s->chord_deg = 0; s->rev++; }
 }
 
 static void handle_events(inst_t *s) {
     pend_t pd[NSTR * 4];
-    int np = 0, ready = bank_state_of(s->cur_bank) == BANK_READY;
+    int np = 0, ready = bank_state_of(s->cur_bank) == BANK_READY, chord_batch = 0;
     for (int e = 0; e < s->nev; e++) {
         uint8_t st = s->ev[e].st & 0xF0, d1 = s->ev[e].d1 & 0x7F, d2 = s->ev[e].d2 & 0x7F;
         if (st == 0x90 && d2 > 0) {
@@ -809,10 +1001,27 @@ static void handle_events(inst_t *s) {
             if (!ready) continue;
             if (d1 == 22) { s->p[P_ARTIC] = 0; s->rev++; continue; }          /* keyswitches: A#0 sustain, B0 palm mute */
             if (d1 == 23) { s->p[P_ARTIC] = 1; s->rev++; continue; }
-            if (d1 < 28) { start_noise(s, d1, d2); continue; }                 /* (none on the harps, strumstick, violin) */                 /* dead strings and body knocks */
+            if (d1 < 28) { start_noise(s, d1, d2); continue; }                 /* dead strings and body knocks */
+            if ((int)lroundf(s->p[P_CHORD_MODE]) > 0) {          /* CHORD PADS: the key plays its degree's chord */
+                int notes[6], deg, c = chord_for(s, d1, notes, &deg);
+                release_pad(s, d1, pd, np);                       /* the same pad again: its old chord lets go first */
+                s->pad_n[d1] = (uint8_t)c;
+                for (int k = 0; k < c; k++) {
+                    s->pad_notes[d1][k] = (uint8_t)notes[k];
+                    if (s->note_ref[notes[k]] < 255) s->note_ref[notes[k]]++;
+                    int dup = 0;
+                    for (int q = 0; q < np; q++) if (pd[q].key == notes[k] && !pd[q].off) dup = 1;
+                    /* the shape: the lowest note on the lowest string it needs, then one string up per note */
+                    if (!dup && np < (int)(sizeof pd / sizeof pd[0])) { pend_t p = { notes[k], d2, 0, NSTR - c + k, 0 }; pd[np++] = p; }
+                }
+                s->chord_deg = deg; degree_name(s, deg - 1, s->chord, sizeof s->chord); s->rev++;
+                chord_batch = 1;
+                continue;
+            }
             if (np < (int)(sizeof pd / sizeof pd[0])) { pend_t p = { d1, d2, 0, -1, 0 }; pd[np++] = p; }
         } else if (st == 0x80 || (st == 0x90 && d2 == 0)) {
             s->key_down[d1] = 0;
+            if (s->pad_n[d1]) { release_pad(s, d1, pd, np); continue; }
             int found = 0;
             for (int i = 0; i < np; i++) if (pd[i].key == d1 && !pd[i].off) { pd[i].off = 1; found = 1; break; }
             if (found) continue;
@@ -830,7 +1039,7 @@ static void handle_events(inst_t *s) {
         }
     }
     s->nev = 0;
-    if (np) play_batch(s, pd, np);
+    if (np) play_batch(s, pd, np, chord_batch);
 }
 
 static inline float hermite(float xm1, float x0, float x1, float x2, float t) {
@@ -864,6 +1073,7 @@ static void eng_render(void *inst, int16_t *out, int frames) {
     if (want >= NCHOICE) want = NCHOICE - 1;
     if (want != s->cur_choice) { s->cur_choice = want; s->rev++; }
     if (CHOICE_BANK[want] != s->cur_bank) { s->cur_bank = CHOICE_BANK[want]; s->rev++; }
+    bank_hold(s, s->cur_bank);
     bank_request(s->cur_bank);
     handle_events(s);
     float mixL[128], mixR[128];
@@ -1058,7 +1268,7 @@ static void eng_render(void *inst, int16_t *out, int frames) {
     float hp_k = 1.0f - expf(-2 * PI_F * 90.0f / SR);                            /* tighten the lows before clipping */
     float cho_rate = 2 * PI_F * 0.8f / SR, cho_depth = 0.0035f * SR * chorus, cho_base = 0.012f * SR;
     float echo = s->p[P_ECHO];
-    float dly_target = 0.06f * powf(1.0f / 0.06f, s->p[P_ECHO_TIME]) * SR;          /* 60 ms .. 1 s */
+    float dly_target = echo_seconds(s) * SR;                       /* 60 ms .. 1 s, or a note length (ECHO SYNC) */
     if (s->dly_t <= 0) s->dly_t = dly_target;
     float dly_fb = 0.22f + 0.5f * echo, dly_wet = 0.65f * echo;
     float dly_lpk = 1.0f - expf(-2 * PI_F * 3200.0f / SR);                           /* each repeat a little darker */

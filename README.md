@@ -2,13 +2,13 @@
 
 A guitar instrument for Akai MPC OS standalone devices (native VST2, built with
 [mpc-vst-plugins](https://github.com/sd88me/mpc-vst-plugins)), with a synth layer as a twist.
-Status: **v0.7.2, testing on a device.**
+Status: **v0.8.0, testing on a device.**
 
 At its core it plays real, clean, raw recordings on a six-string playing model; drive, chorus, the pluck layer and
 the synth turn that into many more sounds without a sample library.
 
-Three pages: **PLAY** (the neck, instrument, strum and the main knobs), **LAYER A** (the instrument in detail) and
-**LAYER B** (the synth). Each page has its own Q-Links.
+Four pages: **PLAY** (the neck, instrument, strum and the main knobs), **LAYER A** (the instrument in detail),
+**LAYER B** (the synth) and **PERFORM** (chord pads and feel). Each page has its own Q-Links.
 
 ## Layer A: the instrument (INSTRUMENT ◀ ▶ on the PLAY page or LAYER A)
 | Instrument | Recording | Notes |
@@ -25,7 +25,8 @@ Three pages: **PLAY** (the neck, instrument, strum and the main knobs), **LAYER 
 | Bowed Psaltery | VCSL, bowed | held notes keep bowing (a crossfaded loop) |
 
 All CC0 (public domain), so the plugin can be shared. Each instrument loads the first time it is picked (a few
-seconds on the MPC: "LOADING SAMPLES…" shows over the neck) and stays loaded while Fretty is in use. Knobs that do
+seconds on the MPC: "LOADING SAMPLES…" shows over the neck) and stays loaded while it is in use. When another instrument loads, any that no Fretty has had picked for 20
+seconds are released from memory (picked again, they load again). Knobs that do
 nothing for the picked instrument are dimmed (BLEND is the archtop's alone; NOISE has recordings for the two guitars).
 
 ## How it plays
@@ -54,6 +55,19 @@ VELOCITY and FILTER ENV (the envelope opens the filter: plucks and swells).
 **A · GUITAR** and **B · SYNTH** (on both layer pages) switch each layer on or off: both on to layer them, one off to
 solo the other. **MIX A / B** (on every page) balances them while both are on: fully left is A alone, the middle is
 both at full, fully right is B alone.
+
+## Perform (PERFORM page)
+- **CHORD PADS:** CHORDS (Off, Triads, 7ths), KEY, SCALE (Major, Minor, Dorian, Mixolydian, Harm Minor, Phrygian)
+  and VOICING (Open: five strings from the A string; Barre: six strings from the low E; High: a close shape on the
+  top strings). Every note you play becomes the chord of its degree in that key, strummed and voiced string by string
+  like a real chord shape. Set the MPC pads to chromatic or to the same scale; a note between two degrees plays the
+  lower one. The seven tiles show the key's chords, and the one playing lights up. Two pads that share notes keep
+  them ringing until both let go.
+- **FEEL:** TIMING (each hit up to 18 ms late at random, and each strummed string a little uneven) and VELOCITY
+  (up to +/-22 at random). Off at zero.
+- **ECHO SYNC:** the ECHO TIME knob steps through note lengths (1/32 to 1/2, with triplets and dotted) at the
+  project's tempo. Off: milliseconds.
+- Presets never change the PERFORM settings (like the THEME).
 
 ## Effects (PLAY page)
 DRIVE (an amp-style clipper, from warm to distorted), CHORUS, ECHO (a stereo ping-pong delay whose repeats get
@@ -127,7 +141,7 @@ level 0-3, `s<n>_fret`: the lit fret). MPC only swaps those pictures when a valu
 
 ## Offline checks
 - `../mpc-vst-plugins/tools/test_port.sh vst/vst.json` (ASan/UBSan host test, presets included)
-- `tools/render_demo.c`: plays through the engine into a WAV (`render_demo engine out.wav [tour | violin | strum | glide | pitch <instrument>]`).
+- `tools/render_demo.c`: plays through the engine into a WAV (`render_demo engine out.wav [tour | violin | strum | glide | chords | pitch <instrument>]`).
 
 ## Credits
 Samples: Karoryfer Lecolds and Versilian Studios (VCSL, VSCO 2 CE), all CC0. Font: Yellowtail (Apache 2.0). See [CREDITS.md](CREDITS.md).

@@ -14,7 +14,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 VST = os.path.join(HERE, "..", "vst")
 
 SKIP = {"theme", "status", "chord", "load_state",         # look and display-only parameters
-        "strum", "engine", "a_level", "b_level"}            # old ones the engine no longer reads
+        "strum", "engine", "a_level", "b_level",            # old ones the engine no longer reads
+        # the PERFORM page is how you play, not the sound: a preset leaves it alone (like THEME)
+        "chord_mode", "chord_key", "chord_scale", "chord_voicing", "hum_time", "hum_vel", "echo_sync", "chord_deg"}
 
 PRESETS = [
     # ---- acoustic (the archtop: BLEND mixes its pickup and its microphone)
@@ -129,7 +131,7 @@ def main():
     base = {}
     for p in params:
         k = p["key"]
-        if k in SKIP or p.get("momentary") or k.startswith(("s1_", "s2_", "s3_", "s4_", "s5_", "s6_")):
+        if k in SKIP or p.get("momentary") or p.get("display") == "string" or k.startswith(("s1_", "s2_", "s3_", "s4_", "s5_", "s6_")):
             continue
         base[k] = p["default"]
     out = []
