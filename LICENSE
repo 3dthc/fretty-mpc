@@ -19,8 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-Not covered by this license (they keep their own):
-- engine/*.smp: samples from Karoryfer Lecolds and Versilian Studios, CC0 1.0 (public domain). See CREDITS.md.
-- vst/fonts/Yellowtail-Regular.ttf: Yellowtail by Astigmatic, Apache License 2.0 (vst/fonts/LICENSE-Yellowtail.txt).
