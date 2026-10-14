@@ -191,9 +191,9 @@ static const char *PKEY[NP] = {
     "eng_mix", "eng_color", "eng_sustain", "eng_detune", "space", "volume", "theme"
 };
 static const float PDEF[NP] = {
-    0.35f, 0.70f, 0.15f, 0.0f, 0, 0, 0.35f, 0.55f,
-    0, 1, 1, 0, 1,
-    0.25f, 0.55f, 0.60f, 0.25f, 0.25f, 0.80f, 0
+    0.35f, 1.0f, 0.0f, 0.0f, 0, 0, 0.35f, 0.55f,
+    0, 1, 1, 0, 0,
+    0.25f, 0.55f, 0.60f, 0.25f, 0.0f, 0.80f, 0
 };
 static const int OPEN[NSTR] = { 40, 45, 50, 55, 59, 64 };
 static const char *NOTE_NAME[12] = { "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B" };
@@ -584,6 +584,7 @@ static int fmt_display(inst_t *s, int i, char *buf, int n) {
     case P_CAPO: { int k = (int)lroundf(v); return k ? snprintf(buf, n, "FRET %d", k) : snprintf(buf, n, "OFF"); }
     case P_STRUM_SPEED: return snprintf(buf, n, "%d ms", (int)lroundf(4 + 36 * v));
     case P_NOISE: return v < 0.01f ? snprintf(buf, n, "OFF") : snprintf(buf, n, "%.0f dB", 40 * log10f(v));
+    case P_TONE: return v >= 0.99f ? snprintf(buf, n, "OPEN") : snprintf(buf, n, "%.1f kHz", 0.6f * powf(2.0f, v * 5.0f));
     case P_ENG_COLOR: return snprintf(buf, n, "%.1f kHz", 0.4f + 7.6f * v);
     case P_ENG_DETUNE: return snprintf(buf, n, "+%d ct", (int)lroundf(v * 30));
     case P_VOLUME: return v < 0.001f ? snprintf(buf, n, "-inf dB") : snprintf(buf, n, "%.1f dB", 20 * log10f(v / 0.9f));
@@ -670,7 +671,8 @@ static void eng_render(void *inst, int16_t *out, int frames) {
     int ready = bank_state() == BANK_READY;
 
     float blend = s->p[P_BLEND];
-    float tone_hz = 600.0f * powf(2.0f, s->p[P_TONE] * 4.5f);
+    float tone_hz = 600.0f * powf(2.0f, s->p[P_TONE] * 5.0f);
+    int tone_open = s->p[P_TONE] >= 0.99f;           /* fully open: no filter at all, the raw recording */
     float vib_depth = (s->p[P_VIBRATO] + s->modwheel) * 0.30f;       /* semitones, up to 30 cents each */
     s->vib_ph += 2 * PI_F * 5.2f * frames / SR;
     if (s->vib_ph > 2 * PI_F) s->vib_ph -= 2 * PI_F;
@@ -691,7 +693,8 @@ static void eng_render(void *inst, int16_t *out, int frames) {
         }
         float bend = v->kind == VK_NOTE ? s->bend : 0;
         double rate = pow(2.0, (v->semis + bend + vib) / 12.0);
-        float lpk = 1.0f - expf(-2 * PI_F * fminf(tone_hz * v->lp_k_scale, 18000.0f) / SR);
+        float lpk = (tone_open && v->lp_k_scale >= 1.0f) ? 1.0f
+                  : 1.0f - expf(-2 * PI_F * fminf(tone_hz * v->lp_k_scale, 18000.0f) / SR);
         float ks_len = 0;
         int use_ks = v->ks_on && eng_on;
         if (use_ks) {

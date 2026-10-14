@@ -57,8 +57,9 @@ int main(int argc, char **argv) {
     /* 4. same chord: pickup only, mic only, engine off vs heavy engine */
     prm(t, "blend", "0"); chord(t, 1.4, C, 5, 100); t += 1.8;
     prm(t, "blend", "1"); chord(t, 1.4, C, 5, 100); t += 1.8;
-    prm(t, "blend", "0.35"); prm(t, "engine", "0"); chord(t, 1.4, G, 6, 100); t += 1.8;
-    prm(t, "engine", "1"); prm(t, "eng_mix", "0.8"); prm(t, "eng_sustain", "0.95"); chord(t, 2.5, G, 6, 100); t += 3.0;
+    prm(t, "blend", "0.35"); chord(t, 1.4, G, 6, 100); t += 1.8;
+    prm(t, "engine", "1");
+    prm(t, "eng_mix", "0.8"); prm(t, "eng_sustain", "0.95"); chord(t, 2.5, G, 6, 100); t += 3.0;
     prm(t, "eng_mix", "0.25"); prm(t, "eng_sustain", "0.6");
     /* 5. low notes, drop tuning, dead notes and knocks */
     prm(t, "drop", "1"); note(t, 1.5, 37, 110); t += 1.6; prm(t, "drop", "0");
