@@ -1,27 +1,27 @@
-# Device test (v0.8.0)
+# Device test (v0.8.1)
 
-Goal: confirm Fretty v0.8.0 builds, loads with its four pages, plays every instrument (now with the zithers), and stays light on the CPU.
+Goal: confirm Fretty v0.8.1 builds, loads with its four pages, plays every instrument (now with the zithers), and stays light on the CPU.
 
 **If you installed the earlier test build (Archtop):** remove it first (`uninstall.sh` from its zip, or the installer
 app), since Fretty is a new plugin with its own folder.
 
 ## 1. Install (Ubuntu in WSL)
-Download all three zips to your Windows **Downloads** folder: `fretty-mpc-v0.8.0.zip`, `fretty-instruments-1-v0.6.0.zip`
+Download all three zips to your Windows **Downloads** folder: `fretty-mpc-v0.8.1.zip`, `fretty-instruments-1-v0.6.0.zip`
 and `fretty-instruments-2-v0.6.0.zip` (the instruments are split only because of a download size limit; they have not
 changed since v0.6.0).
 Start Docker Desktop, then paste this one line into Ubuntu:
 
 ```sh
-rm -rf ~/fretty-mpc && python3 -m zipfile -e /mnt/c/Users/*/Downloads/fretty-mpc-v0.8.0.zip ~/ && bash ~/fretty-mpc/install.sh
+rm -rf ~/fretty-mpc && python3 -m zipfile -e /mnt/c/Users/*/Downloads/fretty-mpc-v0.8.1.zip ~/ && bash ~/fretty-mpc/install.sh
 ```
 
 `install.sh` adds the instruments from the other two zips, checks Docker and the toolchain (`~/mpc-vst-plugins`, cloned
-if missing), builds, and copies `Fretty-0.8.0-mpc-armv7.zip` into your Windows Downloads. It stops with a plain
+if missing), builds, and copies `Fretty-0.8.1-mpc-armv7.zip` into your Windows Downloads. It stops with a plain
 message if something is missing; fix that and run `bash ~/fretty-mpc/install.sh` again.
 Expected at the end of the build output:
 - `exported: VSTPluginMain`
 - `highest glibc: GLIBC_2.x` (2.31 or lower is ideal; above 2.36 would not load)
-- `dist/Fretty-0.8.0-mpc-armv7.zip`, about 68 MB
+- `dist/Fretty-0.8.1-mpc-armv7.zip`, about 68 MB
 
 The first build with the new page also downloads the toolchain's artwork renderer image (Playwright, ~1-2 GB, once).
 
@@ -71,7 +71,7 @@ Because the instrument list grew, open a fresh Fretty rather than a project save
 | 24e | Echo sync | ECHO up on PLAY, ECHO SYNC on, turn ECHO TIME | the value reads 1/8, 1/4D...; repeats land on the beat at the project tempo |
 | 24f | Memory | Pick several instruments one after another, wait 20 s, pick another | no glitches; an instrument picked again loads again |
 | 25 | Q-Links | Each page: turn the Q-Links | they move that page's knobs |
-| 26 | Presets | PRESET menu: try several from each group | each changes the sound, never the theme |
+| 26 | Presets | PRESET menu: the list reads in groups (ACO, ELE, 80S, STL, HRP, VLN, ZTH, FLK, SYN); try several from each | each changes the sound, never the theme or PERFORM |
 | 27 | CPU | Busy chords with a drive + synth preset for a minute | no crackles (`tools/bench.sh` gives the numbers) |
 
 Also note roughly how long check 2 takes: the first insert decodes the samples (a few seconds on the MPC).

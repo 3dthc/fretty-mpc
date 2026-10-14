@@ -2,7 +2,7 @@
 
 A guitar instrument for Akai MPC OS standalone devices (native VST2, built with
 [mpc-vst-plugins](https://github.com/sd88me/mpc-vst-plugins)), with a synth layer as a twist.
-Status: **v0.8.0, testing on a device.**
+Status: **v0.8.1, testing on a device.**
 
 At its core it plays real, clean, raw recordings on a six-string playing model; drive, chorus, the pluck layer and
 the synth turn that into many more sounds without a sample library.
@@ -75,16 +75,21 @@ darker; ECHO TIME 60 ms to 1 s), SPACE (room reverb), then VOLUME. Each is compl
 at zero, so the default sound is the raw recording.
 
 ## Presets
-50 starters in MPC's PRESET menu: acoustic (Clean Archtop, Acoustic Strum, Nylon-Style Soft, Front Porch, Funk
-Mutes, Ballad Strum, Lead Lines), electric (Clean Electric, Chorus Clean, Crunch, Distorted Rhythm, Electric Mutes,
-Surf-ish, Lead Drive, Volume Swells), Folk Harp, Concert Harp Glide, Strumstick Banjo-ish, Old-Time Picker, violin
-(Violin Lead, Electric Violin, Violin Pizzicato), zithers (Dan Tranh, Dan Tranh Bends, Psaltery, Bowed Psaltery),
-dulcimers (Hammered Dulcimer, Mountain Dulcimer), steel (Lap Steel, Pedal Steel Swells, Dobro Slide, Weissenborn
-Slide), late-80s / post-punk electrics (Chorus Wash, Bass VI Melody: play it an octave down, Cold Wave Layers,
-Post-Punk Grit, Cold Room Clean), folk-fantasy colours (Saz Picking, Gusli Village, Wanderer's Lute, Kemenche
-Lament, Tavern Fiddle, Wheel Drone: a hurdy-gurdy-style drone, play it low, Island Harp) and A + B sounds
-(Guitar + Pad, Violin + Strings Pad, Plucked Glass, Electric + Saw Lead, Synth Pluck, Synth Pad). Presets never change
-the THEME.
+50 starters in MPC's PRESET menu, in groups (the tag leads each name):
+- **ACO** acoustic: Clean Archtop, Acoustic Strum, Nylon-Style Soft, Front Porch, Funk Mutes, Ballad Strum, Lead Lines
+- **ELE** electric: Clean Electric, Chorus Clean, Crunch, Distorted Rhythm, Electric Mutes, Surf-ish, Lead Drive,
+  Volume Swells
+- **80S** late-80s / post-punk: Chorus Wash, Bass VI Melody (play it an octave down), Cold Wave Layers, Post-Punk
+  Grit, Cold Room Clean
+- **STL** steel and slide: Lap Steel, Pedal Steel Swells, Dobro Slide, Weissenborn Slide
+- **HRP** harps: Folk Harp, Concert Harp Glide, Island Harp
+- **VLN** violin: Violin Lead, Electric Violin, Violin Pizzicato
+- **ZTH** zithers: Dan Tranh, Dan Tranh Bends, Psaltery, Bowed Psaltery, Hammered Dulcimer
+- **FLK** folk: Strumstick Banjo, Old-Time Picker, Mountain Dulcimer, Saz Picking, Gusli Village, Wanderer's Lute,
+  Kemenche Lament, Tavern Fiddle, Wheel Drone (play it low)
+- **SYN** A + B: Guitar + Pad, Violin + Pad, Plucked Glass, Electric Saw Lead, Synth Pluck B Solo, Synth Pad B Solo
+
+Presets never change the THEME or the PERFORM settings.
 
 Some sounds have no free recordings that can be shared, so they are built from the closest real ones:
 - **Nylon-Style Soft**: the archtop's microphone, softened and darkened.
