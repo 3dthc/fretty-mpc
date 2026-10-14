@@ -1,0 +1,34 @@
+# Builds Fretty for MPC in GitHub Actions and attaches Fretty-<version>-mpc-armv7.zip to a DRAFT release.
+# Run it from the Actions tab ("Release" > Run workflow, enter the version). Install that exact zip on an MPC,
+# check it (TESTING.md), then publish the draft: publishing creates the tag and the catalog picks it up.
+# Uses mpc-vst-plugins' reusable workflow, pinned to one commit in both places below.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version, e.g. 0.8.2
+        required: true
+        type: string
+      dry_run:
+        description: Build and package only (the zip and page previews as run artifacts), no draft release
+        type: boolean
+        default: false
+
+jobs:
+  vst:
+    uses: sd88me/mpc-vst-plugins/.github/workflows/vst-release.yml@e18a0a1da84515096d354f399dd4cd7f9c079fb5
+    permissions: { contents: write }
+    with:
+      tag: v${{ inputs.version }}
+      version: ${{ inputs.version }}
+      tools_ref: e18a0a1da84515096d354f399dd4cd7f9c079fb5
+      vst_dir: vst
+      build: bash vst/build.sh
+      host_test: '"$MPC_VST/tools/test_port.sh" vst/vst.json'
+      extra: engine:engine
+      about: Sampled guitars (acoustic archtop, electric), harps, strumstick, violin, dan tranh and psaltery on a six-string playing model, with a synth layer, chord pads, drive, chorus, echo and space. All samples CC0.
+      plugin_id: fretty
+      license: MIT
+      dry_run: ${{ inputs.dry_run }}
