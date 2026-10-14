@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Fretty: one-step install, from the downloaded zips to a zip ready for the MPC.
 #
-#   python3 -m zipfile -e /mnt/c/Users/*/Downloads/fretty-mpc-v0.6.0.zip ~/ && bash ~/fretty-mpc/install.sh
+#   python3 -m zipfile -e /mnt/c/Users/*/Downloads/fretty-mpc-v0.7.0.zip ~/ && bash ~/fretty-mpc/install.sh
 #
 # What it does:
-#   1. finds the fretty-instruments-*-v<version>.zip files in your Windows Downloads (or ~) and adds their instruments
+#   1. finds the fretty-instruments-*-v<INSTR_VERSION>.zip files in your Windows Downloads (or ~) and adds their instruments
 #      to engine/
 #   2. checks Docker is running and that mpc-vst-plugins is next to this folder (clones it if not)
 #   3. builds the plugin and packages dist/Fretty-<version>-mpc-armv7.zip
@@ -12,7 +12,8 @@
 # Safe to run again: each step skips what is already done.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-VERSION="0.6.0"
+VERSION="0.7.0"
+INSTR_VERSION="0.6.0"        # the instrument zips (unchanged since then: keep the ones you have)
 INSTRUMENTS="acoustic electric folkharp concertharp strumstick violin dantranh psaltery"
 MPC_VST="${MPC_VST:-$HERE/../mpc-vst-plugins}"
 step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
@@ -29,7 +30,7 @@ missing() { local m=""; for f in $INSTRUMENTS; do [ -f "$HERE/engine/$f.smp" ] |
 if [ -n "$(missing)" ]; then
   found=0
   for d in "${DL_DIRS[@]}"; do
-    for zip in "$d"/fretty-instruments-*-v"$VERSION".zip; do
+    for zip in "$d"/fretty-instruments-*-v"$INSTR_VERSION".zip; do
       [ -f "$zip" ] || continue
       echo "unpacking $zip"
       tmp="$(mktemp -d)"
@@ -40,12 +41,12 @@ if [ -n "$(missing)" ]; then
     done
     if [ "$found" -gt 0 ]; then break; fi
   done
-  [ "$found" -gt 0 ] || fail "no fretty-instruments-*-v$VERSION.zip found in: ${DL_DIRS[*]}
+  [ "$found" -gt 0 ] || fail "no fretty-instruments-*-v$INSTR_VERSION.zip found in: ${DL_DIRS[*]}
        Download them next to fretty-mpc-v$VERSION.zip and run this again."
 fi
 m="$(missing)"
 [ -z "$m" ] || fail "still missing in engine/:$m
-       Download every fretty-instruments-*-v$VERSION.zip into the same folder and run this again."
+       Download every fretty-instruments-*-v$INSTR_VERSION.zip into the same folder and run this again."
 echo "all $(echo $INSTRUMENTS | wc -w) instrument files present"
 
 # ---- 2. tools
