@@ -1,466 +1,549 @@
 {
-  "name": "Fretty",
-  "params": [
-    {
-      "key": "blend",
-      "name": "Blend",
-      "min": 0,
-      "max": 1,
-      "default": 0.35,
-      "dynamic_display": true
-    },
-    {
-      "key": "tone",
-      "name": "Tone",
-      "min": 0,
-      "max": 1,
-      "default": 1.0,
-      "dynamic_display": true
-    },
-    {
-      "key": "damp",
-      "name": "Damp",
-      "min": 0,
-      "max": 1,
-      "default": 0.0,
-      "dynamic_display": true
-    },
-    {
-      "key": "vibrato",
-      "name": "Vibrato",
-      "min": 0,
-      "max": 1,
-      "default": 0.0,
-      "dynamic_display": true
-    },
-    {
-      "key": "position",
-      "name": "Position",
-      "min": 0,
-      "max": 12,
-      "default": 0,
-      "display": "int",
-      "dynamic_display": true
-    },
-    {
-      "key": "capo",
-      "name": "Capo",
-      "min": 0,
-      "max": 9,
-      "default": 0,
-      "display": "int",
-      "dynamic_display": true
-    },
-    {
-      "key": "strum_speed",
-      "name": "Strum Speed",
-      "min": 0,
-      "max": 1,
-      "default": 0.35,
-      "dynamic_display": true
-    },
-    {
-      "key": "noise",
-      "name": "Noise",
-      "min": 0,
-      "max": 1,
-      "default": 0.55,
-      "dynamic_display": true
-    },
-    {
-      "key": "artic",
-      "name": "Articulation",
-      "options": [
-        "Sustain",
-        "Palm Mute"
-      ],
-      "default": "Sustain"
-    },
-    {
-      "key": "legato",
-      "name": "Legato",
-      "options": [
-        "Off",
-        "On"
-      ],
-      "default": "On"
-    },
-    {
-      "key": "strum",
-      "name": "Strum",
-      "options": [
-        "Off",
-        "On"
-      ],
-      "default": "On"
-    },
-    {
-      "key": "drop",
-      "name": "Drop Db",
-      "options": [
-        "Off",
-        "On"
-      ],
-      "default": "Off"
-    },
-    {
-      "key": "engine",
-      "name": "Engine",
-      "options": [
-        "Off",
-        "On"
-      ],
-      "default": "Off"
-    },
-    {
-      "key": "eng_mix",
-      "name": "Engine Mix",
-      "min": 0,
-      "max": 1,
-      "default": 0.25,
-      "dynamic_display": true
-    },
-    {
-      "key": "eng_color",
-      "name": "Engine Color",
-      "min": 0,
-      "max": 1,
-      "default": 0.55,
-      "dynamic_display": true
-    },
-    {
-      "key": "eng_sustain",
-      "name": "Engine Sustain",
-      "min": 0,
-      "max": 1,
-      "default": 0.6,
-      "dynamic_display": true
-    },
-    {
-      "key": "eng_detune",
-      "name": "Engine Detune",
-      "min": 0,
-      "max": 1,
-      "default": 0.25,
-      "dynamic_display": true
-    },
-    {
-      "key": "space",
-      "name": "Space",
-      "min": 0,
-      "max": 1,
-      "default": 0.0,
-      "dynamic_display": true
-    },
-    {
-      "key": "volume",
-      "name": "Volume",
-      "min": 0,
-      "max": 1,
-      "default": 0.8,
-      "dynamic_display": true
-    },
-    {
-      "key": "theme",
-      "name": "Theme",
-      "options": [
-        "MPC Black",
-        "Sunburst",
-        "MPC Grey"
-      ],
-      "default": "MPC Black"
-    },
-    {
-      "key": "status",
-      "name": "Status",
-      "min": 0,
-      "max": 1,
-      "default": 0,
-      "display": "string"
-    },
-    {
-      "key": "chord",
-      "name": "Chord",
-      "min": 0,
-      "max": 1,
-      "default": 0,
-      "display": "string"
-    },
-    {
-      "key": "s1_vib",
-      "name": "String 1 Ring",
-      "min": 0,
-      "max": 3,
-      "default": 0,
-      "display": "int"
-    },
-    {
-      "key": "s2_vib",
-      "name": "String 2 Ring",
-      "min": 0,
-      "max": 3,
-      "default": 0,
-      "display": "int"
-    },
-    {
-      "key": "s3_vib",
-      "name": "String 3 Ring",
-      "min": 0,
-      "max": 3,
-      "default": 0,
-      "display": "int"
-    },
-    {
-      "key": "s4_vib",
-      "name": "String 4 Ring",
-      "min": 0,
-      "max": 3,
-      "default": 0,
-      "display": "int"
-    },
-    {
-      "key": "s5_vib",
-      "name": "String 5 Ring",
-      "min": 0,
-      "max": 3,
-      "default": 0,
-      "display": "int"
-    },
-    {
-      "key": "s6_vib",
-      "name": "String 6 Ring",
-      "min": 0,
-      "max": 3,
-      "default": 0,
-      "display": "int"
-    },
-    {
-      "key": "s1_fret",
-      "name": "String 1 Fret",
-      "min": 0,
-      "max": 16,
-      "default": 0,
-      "display": "int"
-    },
-    {
-      "key": "s2_fret",
-      "name": "String 2 Fret",
-      "min": 0,
-      "max": 16,
-      "default": 0,
-      "display": "int"
-    },
-    {
-      "key": "s3_fret",
-      "name": "String 3 Fret",
-      "min": 0,
-      "max": 16,
-      "default": 0,
-      "display": "int"
-    },
-    {
-      "key": "s4_fret",
-      "name": "String 4 Fret",
-      "min": 0,
-      "max": 16,
-      "default": 0,
-      "display": "int"
-    },
-    {
-      "key": "s5_fret",
-      "name": "String 5 Fret",
-      "min": 0,
-      "max": 16,
-      "default": 0,
-      "display": "int"
-    },
-    {
-      "key": "s6_fret",
-      "name": "String 6 Fret",
-      "min": 0,
-      "max": 16,
-      "default": 0,
-      "display": "int"
-    },
-    {
-      "key": "theme_prev",
-      "name": "Theme Prev",
-      "momentary": true,
-      "step_of": "theme",
-      "step_delta": -1
-    },
-    {
-      "key": "theme_next",
-      "name": "Theme Next",
-      "momentary": true,
-      "step_of": "theme",
-      "step_delta": 1
-    },
-    {
-      "key": "instrument",
-      "name": "Instrument",
-      "options": [
-        "Acoustic",
-        "Electric",
-        "Folk Harp",
-        "Concert Harp",
-        "Strumstick"
-      ],
-      "default": "Acoustic"
-    },
-    {
-      "key": "instrument_prev",
-      "name": "Instrument Prev",
-      "momentary": true,
-      "step_of": "instrument",
-      "step_delta": -1
-    },
-    {
-      "key": "instrument_next",
-      "name": "Instrument Next",
-      "momentary": true,
-      "step_of": "instrument",
-      "step_delta": 1
-    },
-    {
-      "key": "drive",
-      "name": "Drive",
-      "min": 0,
-      "max": 1,
-      "default": 0.0,
-      "dynamic_display": true
-    },
-    {
-      "key": "chorus",
-      "name": "Chorus",
-      "min": 0,
-      "max": 1,
-      "default": 0.0,
-      "dynamic_display": true
-    },
-    {
-      "key": "a_on",
-      "name": "A Guitar",
-      "options": [
-        "Off",
-        "On"
-      ],
-      "default": "On"
-    },
-    {
-      "key": "b_on",
-      "name": "B Synth",
-      "options": [
-        "Off",
-        "On"
-      ],
-      "default": "Off"
-    },
-    {
-      "key": "a_level",
-      "name": "A Level",
-      "min": 0,
-      "max": 1,
-      "default": 0.8,
-      "dynamic_display": true
-    },
-    {
-      "key": "b_level",
-      "name": "B Level",
-      "min": 0,
-      "max": 1,
-      "default": 0.5,
-      "dynamic_display": true
-    },
-    {
-      "key": "wave",
-      "name": "Wave",
-      "options": [
-        "Sine",
-        "Triangle",
-        "Saw",
-        "Square"
-      ],
-      "default": "Saw"
-    },
-    {
-      "key": "wave_prev",
-      "name": "Wave Prev",
-      "momentary": true,
-      "step_of": "wave",
-      "step_delta": -1
-    },
-    {
-      "key": "wave_next",
-      "name": "Wave Next",
-      "momentary": true,
-      "step_of": "wave",
-      "step_delta": 1
-    },
-    {
-      "key": "octave",
-      "name": "Octave",
-      "min": -2,
-      "max": 2,
-      "default": 0,
-      "display": "int",
-      "dynamic_display": true
-    },
-    {
-      "key": "syn_detune",
-      "name": "Synth Detune",
-      "min": 0,
-      "max": 1,
-      "default": 0.15,
-      "dynamic_display": true
-    },
-    {
-      "key": "cutoff",
-      "name": "Cutoff",
-      "min": 0,
-      "max": 1,
-      "default": 0.6,
-      "dynamic_display": true
-    },
-    {
-      "key": "resonance",
-      "name": "Resonance",
-      "min": 0,
-      "max": 1,
-      "default": 0.15,
-      "dynamic_display": true
-    },
-    {
-      "key": "attack",
-      "name": "Attack",
-      "min": 0,
-      "max": 1,
-      "default": 0.02,
-      "dynamic_display": true
-    },
-    {
-      "key": "decay",
-      "name": "Decay",
-      "min": 0,
-      "max": 1,
-      "default": 0.4,
-      "dynamic_display": true
-    },
-    {
-      "key": "sustain",
-      "name": "Sustain",
-      "min": 0,
-      "max": 1,
-      "default": 0.6,
-      "dynamic_display": true
-    },
-    {
-      "key": "release",
-      "name": "Release",
-      "min": 0,
-      "max": 1,
-      "default": 0.3,
-      "dynamic_display": true
-    }
-  ]
+ "name": "Fretty",
+ "params": [
+  {
+   "key": "blend",
+   "name": "Blend",
+   "min": 0,
+   "max": 1,
+   "default": 0.35,
+   "dynamic_display": true
+  },
+  {
+   "key": "tone",
+   "name": "Tone",
+   "min": 0,
+   "max": 1,
+   "default": 1.0,
+   "dynamic_display": true
+  },
+  {
+   "key": "damp",
+   "name": "Damp",
+   "min": 0,
+   "max": 1,
+   "default": 0.0,
+   "dynamic_display": true
+  },
+  {
+   "key": "vibrato",
+   "name": "Vibrato",
+   "min": 0,
+   "max": 1,
+   "default": 0.0,
+   "dynamic_display": true
+  },
+  {
+   "key": "position",
+   "name": "Position",
+   "min": 0,
+   "max": 12,
+   "default": 0,
+   "display": "int",
+   "dynamic_display": true
+  },
+  {
+   "key": "capo",
+   "name": "Capo",
+   "min": 0,
+   "max": 9,
+   "default": 0,
+   "display": "int",
+   "dynamic_display": true
+  },
+  {
+   "key": "strum_speed",
+   "name": "Strum Speed",
+   "min": 0,
+   "max": 1,
+   "default": 0.35,
+   "dynamic_display": true
+  },
+  {
+   "key": "noise",
+   "name": "Noise",
+   "min": 0,
+   "max": 1,
+   "default": 0.55,
+   "dynamic_display": true
+  },
+  {
+   "key": "artic",
+   "name": "Articulation",
+   "options": [
+    "Sustain",
+    "Palm Mute"
+   ],
+   "default": "Sustain"
+  },
+  {
+   "key": "legato",
+   "name": "Legato",
+   "options": [
+    "Off",
+    "On"
+   ],
+   "default": "On"
+  },
+  {
+   "key": "strum",
+   "name": "Strum (old)",
+   "options": [
+    "Off",
+    "On"
+   ],
+   "default": "On"
+  },
+  {
+   "key": "drop",
+   "name": "Drop Db",
+   "options": [
+    "Off",
+    "On"
+   ],
+   "default": "Off"
+  },
+  {
+   "key": "engine",
+   "name": "Engine (old)",
+   "options": [
+    "Off",
+    "On"
+   ],
+   "default": "Off"
+  },
+  {
+   "key": "eng_mix",
+   "name": "Engine Mix",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "dynamic_display": true
+  },
+  {
+   "key": "eng_color",
+   "name": "Engine Color",
+   "min": 0,
+   "max": 1,
+   "default": 0.55,
+   "dynamic_display": true
+  },
+  {
+   "key": "eng_sustain",
+   "name": "Engine Sustain",
+   "min": 0,
+   "max": 1,
+   "default": 0.6,
+   "dynamic_display": true
+  },
+  {
+   "key": "eng_detune",
+   "name": "Engine Detune",
+   "min": 0,
+   "max": 1,
+   "default": 0.25,
+   "dynamic_display": true
+  },
+  {
+   "key": "space",
+   "name": "Space",
+   "min": 0,
+   "max": 1,
+   "default": 0.0,
+   "dynamic_display": true
+  },
+  {
+   "key": "volume",
+   "name": "Volume",
+   "min": 0,
+   "max": 1,
+   "default": 0.8,
+   "dynamic_display": true
+  },
+  {
+   "key": "theme",
+   "name": "Theme",
+   "options": [
+    "MPC Black",
+    "Sunburst",
+    "MPC Grey"
+   ],
+   "default": "MPC Black"
+  },
+  {
+   "key": "status",
+   "name": "Status",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "chord",
+   "name": "Chord",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "s1_vib",
+   "name": "String 1 Ring",
+   "min": 0,
+   "max": 3,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "s2_vib",
+   "name": "String 2 Ring",
+   "min": 0,
+   "max": 3,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "s3_vib",
+   "name": "String 3 Ring",
+   "min": 0,
+   "max": 3,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "s4_vib",
+   "name": "String 4 Ring",
+   "min": 0,
+   "max": 3,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "s5_vib",
+   "name": "String 5 Ring",
+   "min": 0,
+   "max": 3,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "s6_vib",
+   "name": "String 6 Ring",
+   "min": 0,
+   "max": 3,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "s1_fret",
+   "name": "String 1 Fret",
+   "min": 0,
+   "max": 16,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "s2_fret",
+   "name": "String 2 Fret",
+   "min": 0,
+   "max": 16,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "s3_fret",
+   "name": "String 3 Fret",
+   "min": 0,
+   "max": 16,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "s4_fret",
+   "name": "String 4 Fret",
+   "min": 0,
+   "max": 16,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "s5_fret",
+   "name": "String 5 Fret",
+   "min": 0,
+   "max": 16,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "s6_fret",
+   "name": "String 6 Fret",
+   "min": 0,
+   "max": 16,
+   "default": 0,
+   "display": "int"
+  },
+  {
+   "key": "theme_prev",
+   "name": "Theme Prev",
+   "momentary": true,
+   "step_of": "theme",
+   "step_delta": -1
+  },
+  {
+   "key": "theme_next",
+   "name": "Theme Next",
+   "momentary": true,
+   "step_of": "theme",
+   "step_delta": 1
+  },
+  {
+   "key": "instrument",
+   "name": "Instrument",
+   "options": [
+    "Acoustic",
+    "Electric",
+    "Folk Harp",
+    "Concert Harp",
+    "Strumstick",
+    "Violin",
+    "Violin Pizz"
+   ],
+   "default": "Acoustic"
+  },
+  {
+   "key": "instrument_prev",
+   "name": "Instrument Prev",
+   "momentary": true,
+   "step_of": "instrument",
+   "step_delta": -1
+  },
+  {
+   "key": "instrument_next",
+   "name": "Instrument Next",
+   "momentary": true,
+   "step_of": "instrument",
+   "step_delta": 1
+  },
+  {
+   "key": "drive",
+   "name": "Drive",
+   "min": 0,
+   "max": 1,
+   "default": 0.0,
+   "dynamic_display": true
+  },
+  {
+   "key": "chorus",
+   "name": "Chorus",
+   "min": 0,
+   "max": 1,
+   "default": 0.0,
+   "dynamic_display": true
+  },
+  {
+   "key": "a_on",
+   "name": "A Guitar",
+   "options": [
+    "Off",
+    "On"
+   ],
+   "default": "On"
+  },
+  {
+   "key": "b_on",
+   "name": "B Synth",
+   "options": [
+    "Off",
+    "On"
+   ],
+   "default": "Off"
+  },
+  {
+   "key": "a_level",
+   "name": "A Level (old)",
+   "min": 0,
+   "max": 1,
+   "default": 0.8,
+   "dynamic_display": true
+  },
+  {
+   "key": "b_level",
+   "name": "B Level (old)",
+   "min": 0,
+   "max": 1,
+   "default": 0.5,
+   "dynamic_display": true
+  },
+  {
+   "key": "wave",
+   "name": "Wave",
+   "options": [
+    "Sine",
+    "Triangle",
+    "Saw",
+    "Square"
+   ],
+   "default": "Saw"
+  },
+  {
+   "key": "wave_prev",
+   "name": "Wave Prev",
+   "momentary": true,
+   "step_of": "wave",
+   "step_delta": -1
+  },
+  {
+   "key": "wave_next",
+   "name": "Wave Next",
+   "momentary": true,
+   "step_of": "wave",
+   "step_delta": 1
+  },
+  {
+   "key": "octave",
+   "name": "Octave",
+   "min": -2,
+   "max": 2,
+   "default": 0,
+   "display": "int",
+   "dynamic_display": true
+  },
+  {
+   "key": "syn_detune",
+   "name": "Synth Detune",
+   "min": 0,
+   "max": 1,
+   "default": 0.15,
+   "dynamic_display": true
+  },
+  {
+   "key": "cutoff",
+   "name": "Cutoff",
+   "min": 0,
+   "max": 1,
+   "default": 0.6,
+   "dynamic_display": true
+  },
+  {
+   "key": "resonance",
+   "name": "Resonance",
+   "min": 0,
+   "max": 1,
+   "default": 0.15,
+   "dynamic_display": true
+  },
+  {
+   "key": "attack",
+   "name": "Attack",
+   "min": 0,
+   "max": 1,
+   "default": 0.02,
+   "dynamic_display": true
+  },
+  {
+   "key": "decay",
+   "name": "Decay",
+   "min": 0,
+   "max": 1,
+   "default": 0.4,
+   "dynamic_display": true
+  },
+  {
+   "key": "sustain",
+   "name": "Sustain",
+   "min": 0,
+   "max": 1,
+   "default": 0.6,
+   "dynamic_display": true
+  },
+  {
+   "key": "release",
+   "name": "Release",
+   "min": 0,
+   "max": 1,
+   "default": 0.3,
+   "dynamic_display": true
+  },
+  {
+   "key": "strum_mode",
+   "name": "Strum",
+   "options": [
+    "Strum Off",
+    "Strum Down",
+    "Strum Up",
+    "Strum Alt"
+   ],
+   "default": "Strum Down"
+  },
+  {
+   "key": "strum_mode_prev",
+   "name": "Strum Prev",
+   "momentary": true,
+   "step_of": "strum_mode",
+   "step_delta": -1
+  },
+  {
+   "key": "strum_mode_next",
+   "name": "Strum Next",
+   "momentary": true,
+   "step_of": "strum_mode",
+   "step_delta": 1
+  },
+  {
+   "key": "mix",
+   "name": "A/B Mix",
+   "min": 0,
+   "max": 1,
+   "default": 0.5,
+   "dynamic_display": true
+  },
+  {
+   "key": "a_attack",
+   "name": "A Swell",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "dynamic_display": true
+  },
+  {
+   "key": "a_release",
+   "name": "A Release",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "dynamic_display": true
+  },
+  {
+   "key": "a_vel",
+   "name": "A Velocity",
+   "min": 0,
+   "max": 1,
+   "default": 1.0,
+   "dynamic_display": true
+  },
+  {
+   "key": "b_vel",
+   "name": "B Velocity",
+   "min": 0,
+   "max": 1,
+   "default": 0.65,
+   "dynamic_display": true
+  },
+  {
+   "key": "b_fenv",
+   "name": "B Filter Env",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "dynamic_display": true
+  },
+  {
+   "key": "load_state",
+   "name": "Loading",
+   "min": 0,
+   "max": 2,
+   "default": 0,
+   "display": "int"
+  }
+ ]
 }

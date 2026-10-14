@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
     void *s = E->create(argv[1]);
     {   /* load every instrument first (the plugin loads one when it is first selected) */
         int16_t tmp[256];
-        for (int k = 0; k < 5; k++) {
+        for (int k = 0; k < 6; k++) {          /* choices 0-5 cover every sample file */
             char v[16]; snprintf(v, sizeof v, "%d", k);
             E->set_param(s, "instrument", v);
             E->render(s, tmp, 128);
@@ -45,14 +45,39 @@ int main(int argc, char **argv) {
               G[] = { 43, 47, 50, 55, 59, 67 };
     double t = 0.2;
     if (argc > 3 && !strcmp(argv[3], "pitch")) {      /* every note 40..84, engine off, for a pitch check */
-        prm(0, "engine", "0"); prm(0, "space", "0"); prm(0, "noise", "0");
+        prm(0, "eng_mix", "0"); prm(0, "space", "0"); prm(0, "noise", "0");
         if (argc > 4) prm(0, "instrument", argv[4]);
         for (int k = 40; k <= 84; k++) { note(t, 0.9, k, 100); t += 1.0; }
         goto run;
     }
+    if (argc > 3 && !strcmp(argv[3], "violin")) {     /* bowed: long held notes (the loop), legato, chords; then pizz */
+        prm(0, "instrument", "5"); prm(0, "space", "0.25");
+        note(t, 7.0, 55, 90); t += 7.6;                                   /* G3 held 7 s */
+        note(t, 6.0, 76, 115); t += 6.6;                                  /* E5 loud, 6 s */
+        note(t, 4.0, 69, 45); t += 4.6;                                   /* A4 soft */
+        prm(t, "legato", "1");
+        int mel[] = { 67, 69, 71, 72, 74, 72, 71, 69, 67 };
+        for (int q = 0; q < 9; q++) { note(t, 0.62, mel[q], 95); t += 0.55; }
+        t += 1.2;
+        chord(t, 2.5, (int[]){ 55, 62, 71 }, 3, 100); t += 3.2;
+        prm(t, "a_attack", "0.6"); note(t, 3.0, 64, 100); t += 3.8; prm(t, "a_attack", "0");
+        prm(t, "instrument", "6");                                         /* pizzicato */
+        for (int q = 0; q < 12; q++) { note(t, 0.2, mel[q % 9] - 12 * (q % 2), 70 + (q % 3) * 20); t += 0.25; }
+        chord(t, 1.0, C, 5, 100); t += 1.8;
+        goto run;
+    }
+    if (argc > 3 && !strcmp(argv[3], "strum")) {      /* strum modes: down, up, alternate */
+        for (int m = 1; m <= 3; m++) {
+            char mv[16]; snprintf(mv, sizeof mv, "%d", m);
+            prm(t, "strum_mode", mv);
+            for (int q = 0; q < 4; q++) { chord(t, 0.4, G, 6, 100); t += 0.45; }
+            t += 1.0;
+        }
+        goto run;
+    }
     if (argc > 3 && !strcmp(argv[3], "tour")) {       /* every instrument, the effects and the synth */
-        static const char *IN[5] = { "0", "1", "2", "3", "4" };
-        for (int k = 0; k < 5; k++) {
+        static const char *IN[7] = { "0", "1", "2", "3", "4", "5", "6" };
+        for (int k = 0; k < 7; k++) {
             prm(t, "instrument", IN[k]);
             chord(t + 0.05, 1.4, C, 5, 100); t += 1.6;
             int m[] = { 64, 67, 69, 72 };
@@ -92,9 +117,8 @@ int main(int argc, char **argv) {
     prm(t, "blend", "0"); chord(t, 1.4, C, 5, 100); t += 1.8;
     prm(t, "blend", "1"); chord(t, 1.4, C, 5, 100); t += 1.8;
     prm(t, "blend", "0.35"); chord(t, 1.4, G, 6, 100); t += 1.8;
-    prm(t, "engine", "1");
     prm(t, "eng_mix", "0.8"); prm(t, "eng_sustain", "0.95"); chord(t, 2.5, G, 6, 100); t += 3.0;
-    prm(t, "eng_mix", "0.25"); prm(t, "eng_sustain", "0.6");
+    prm(t, "eng_mix", "0"); prm(t, "eng_sustain", "0.6");
     /* 5. low notes, drop tuning, dead notes and knocks */
     prm(t, "drop", "1"); note(t, 1.5, 37, 110); t += 1.6; prm(t, "drop", "0");
     for (int k = 12; k < 28; k++) { if (k == 22 || k == 23) continue; note(t, 0.1, k, 100); t += 0.18; }

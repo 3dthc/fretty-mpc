@@ -2,7 +2,7 @@
 """Pack Fretty's instruments into the sample files its engine loads (one file per instrument, in engine/).
 
     python3 -I tools/pack_samples.py <out dir> --shiny <karoryfer.shinyguitar> --emily <karoryfer.emilyguitar>
-                                     --vcsl <VCSL checkout> [instrument ...] [--full]
+                                     --vcsl <VCSL checkout> --vsco <VSCO-2-CE checkout> [instrument ...] [--full]
 
 Instruments (all CC0, see CREDITS.md):
   acoustic     Karoryfer Shinyguitar, an archtop: the magnetic pickup and the microphone of each take are kept as a
@@ -11,6 +11,7 @@ Instruments (all CC0, see CREDITS.md):
   folkharp     VCSL Folk Harp (stereo).
   concertharp  VCSL Concert Harp (stereo).
   strumstick   VCSL Strumstick, played with the fingers (stereo): somewhere between a banjo and a guitar.
+  violin       VSCO 2 CE Solo Violin (stereo): bowed with vibrato (looped, so a held note sustains) and pizzicato.
 
 The essential set (default) keeps up to three velocity layers, the two most typical takes of each (closest to the
 layer's median level, so no odd takes), notes up to 4 s with a natural 0.5 s fade, and two takes of each release and
@@ -36,7 +37,7 @@ OPT = {}
 WANT = []
 i = 1
 while i < len(ARGS):
-    if ARGS[i] in ("--shiny", "--emily", "--vcsl"):
+    if ARGS[i] in ("--shiny", "--emily", "--vcsl", "--vsco"):
         OPT[ARGS[i][2:]] = ARGS[i + 1]
         i += 2
     elif ARGS[i] == "--full":
@@ -46,7 +47,7 @@ while i < len(ARGS):
         WANT.append(ARGS[i])
         i += 1
 FULL = OPT.get("full", False)
-ALL = ["acoustic", "electric", "folkharp", "concertharp", "strumstick"]
+ALL = ["acoustic", "electric", "folkharp", "concertharp", "strumstick", "violin"]
 WANT = WANT or ALL
 
 TRIM_DB = -66.0
@@ -57,12 +58,14 @@ KEEP_RR = 8 if FULL else 2
 MAX_RR = 8
 REF_RMS = None            # hardest-layer median attack loudness every instrument is trimmed to: the archtop's own
 ARCHTOP_RMS = 0.0747      # that value for the archtop (used when it isn't packed in the same run)
+VIOLIN_TRIM = 1.0        # bowed notes: within 1.5 dB of the archtop's first half second (render_demo pitch 5); held notes add the rest
+PIZZ_GAIN = 2.6          # the pizzicato takes are recorded ~10 dB softer than the bowed ones (render_demo pitch 6)
 # Final level trims, calibrated by playing each instrument through the engine (tools/render_demo.c pitch <n>: E2-C6 at
 # velocity 100) and matching the median power of every note's first 0.5 s to the archtop's. The attack-RMS estimate
 # above is only the starting point: decay shapes differ, so the ear-level match is set here.
-LEVEL_TRIM = {"electric": 1.008, "folkharp": 1.263, "concertharp": 1.901, "strumstick": 1.481}
+LEVEL_TRIM = {"electric": 1.008, "folkharp": 1.263, "concertharp": 1.901, "strumstick": 1.481, "violin": VIOLIN_TRIM}
 ZT_NOTE, ZT_RELEASE, ZT_NOISE = 0, 1, 2
-FLAG_DUAL, FLAG_MONO = 1, 2
+FLAG_DUAL, FLAG_MONO, FLAG_BOWED = 1, 2, 4   # BOWED: a loop table follows the zones; zone "art" byte = articulation
 
 rng = np.random.default_rng(1)
 NOTE_PC = {"c": 0, "d": 2, "e": 4, "f": 5, "g": 7, "a": 9, "b": 11}
@@ -97,8 +100,9 @@ def read_wav(path):
 class Pack:
     def __init__(self, name, flags):
         self.name, self.flags = name, flags
-        self.samples = []        # (float array (frames, ch), is_note, layer_top)
-        self.zones = {}          # (type, lo, hi, root, lv, hv) -> [sample idx]
+        self.samples = []        # [float array (frames, ch), is_note]
+        self.zones = {}          # (type, lo, hi, root, lv, hv[, art]) -> [sample idx]
+        self.loops = {}          # sample idx -> loop start frame (the loop ends at the sample's end)
 
     def add(self, audio, is_note):
         self.samples.append([audio, is_note])
@@ -107,8 +111,8 @@ class Pack:
     def top_layer(self):
         """Indices of the note samples in each pitch's hardest velocity layer."""
         out = set()
-        for (t, lo, hi, root, lv, hv), idxs in self.zones.items():
-            if t == ZT_NOTE and hv == 127:
+        for key, idxs in self.zones.items():
+            if key[0] == ZT_NOTE and key[5] == 127 and (len(key) < 7 or key[6] == 0):
                 out.update(idxs)
         return out
 
@@ -269,8 +273,82 @@ def build_strumstick():
                       lambda t: {"1": (1, 48), "2": (49, 90), "3": (91, 127)}.get(t))
 
 
+# ---------------------------------------------------------------- violin: VSCO 2 CE (bowed loops + pizzicato)
+LOOP_START, LOOP_END = (1.4, 3.4)       # seconds after the bow starts: the loop sits in the settled sustain
+XFADE = 0.25
+
+
+def onset_trim(a, rel_db=-40.0):
+    """Drop the silence before the note (some soft takes start half a second late)."""
+    m = np.abs(a).max(axis=1)
+    thr = m.max() * 10 ** (rel_db / 20)
+    on = int(np.argmax(m >= thr))
+    return a[max(0, on - 220):]
+
+
+def make_loop(a):
+    """-> (audio cut to the loop end with a crossfaded tail, loop start). The tail [le-X, le) fades from the
+    original into the audio just before the loop start, so jumping from le back to ls is seamless."""
+    sr, X = 44100, int(XFADE * 44100)
+    ls = int(LOOP_START * sr)
+    mono = a.mean(axis=1)
+    ref = mono[ls - X:ls]
+    best, bc = None, -2.0
+    lo, hi = int((LOOP_END - 0.6) * sr), min(int(LOOP_END * sr), len(a))
+    for step, rng_ in ((64, range(lo, hi, 64)), (1, None)):
+        cand = rng_ if rng_ is not None else range(max(lo, best - 64), min(hi, best + 64))
+        for le in cand:
+            seg = mono[le - X:le]
+            c = float(np.dot(seg, ref) / (np.linalg.norm(seg) * np.linalg.norm(ref) + 1e-12))
+            if c > bc:
+                bc, best = c, le
+    le = best
+    t = np.linspace(0.0, 1.0, X, endpoint=False)[:, None]
+    if bc > 0.6:
+        wi, wo = t, 1 - t                                 # correlated: a straight crossfade keeps the level
+    else:
+        wi, wo = np.sin(t * np.pi / 2), np.cos(t * np.pi / 2)    # not: equal power
+    out = a[:le].copy()
+    out[le - X:le] = a[le - X:le] * wo + a[ls - X:ls] * wi
+    return out, ls
+
+
+def build_violin():
+    src = os.path.join(OPT["vsco"], "Strings", "Solo Violin")
+    pk = Pack("violin", FLAG_BOWED)
+    layers = {"p": (1, 80), "f": (81, 127)}
+    for art, folder, pat in ((0, "Arco Vib", r"LLVln_ArcoVib_([A-G]#?\d)_(p|f)\.wav"),
+                             (1, "Pizz", r"LLVln_Pizz_([A-G]#?\d)_(p|f)(?:_RR\d)?\.wav")):
+        groups = {}
+        for p in glob.glob(os.path.join(src, folder, "*.wav")):
+            m = re.fullmatch(pat, os.path.basename(p))
+            if m:
+                groups.setdefault((midi_of(m.group(1)), m.group(2)), []).append(p)
+        ranges = spread({r for r, _ in groups})
+        loud = {}
+        for (root, dyn), paths in groups.items():
+            body = lambda q: onset_trim(read_wav(q))[int(0.5 * 44100):int(3.0 * 44100)] if art == 0 else onset_trim(read_wav(q))
+            loud.setdefault(root, {})[dyn] = float(np.median([np.sqrt(np.mean(body(q)[:110250] ** 2)) for q in paths]))
+        for (root, dyn), paths in sorted(groups.items()):
+            lv, hv = layers[dyn]
+            # the soft takes are very soft (up to -15 dB): bring them to 6 dB under the loud ones, velocity does the rest
+            g = 1.0
+            if dyn == "p" and "f" in loud[root] and loud[root]["p"] > 0:
+                g = float(np.clip(0.5 * loud[root]["f"] / loud[root]["p"], 1.0, 4.0))
+            for p in pick_takes(sorted(paths), read_wav):
+                a = onset_trim(read_wav(p)) * g * (PIZZ_GAIN if art == 1 else 1.0)
+                if art == 0:
+                    a, ls = make_loop(a)
+                    idx = pk.add(a, True)
+                    pk.loops[idx] = ls
+                else:
+                    idx = pk.add(a, True)
+                pk.zones.setdefault((ZT_NOTE, ranges[root][0], ranges[root][1], root, lv, hv, art), []).append(idx)
+    return pk
+
+
 BUILDERS = {"acoustic": build_acoustic, "electric": build_electric, "folkharp": build_folkharp,
-            "concertharp": build_concertharp, "strumstick": build_strumstick}
+            "concertharp": build_concertharp, "strumstick": build_strumstick, "violin": build_violin}
 
 
 # ---------------------------------------------------------------- trimming, 16-bit, level
@@ -283,6 +361,14 @@ def finish(pk):
     louds = []
     for idx, (audio, is_note) in enumerate(pk.samples):
         a = audio[:, :1] if mono else (audio if audio.shape[1] == 2 else np.repeat(audio, 2, axis=1))
+        if idx in pk.loops:      # a looped sustain: kept whole (its end joins its loop start), no fade
+            x = a * 32767.0
+            x += rng.random(x.shape) - rng.random(x.shape)
+            out.append(np.clip(np.round(x), -32768, 32767).astype(np.int64))
+            if idx in top:
+                m = a[:22050].mean(axis=1)
+                louds.append(float(np.sqrt(np.mean(m * m))))
+            continue
         thr = 10 ** (TRIM_DB / 20)
         loud = np.nonzero((np.abs(a) >= thr).any(axis=1))[0]
         end = int(loud[-1]) + 1 if len(loud) else 1
@@ -375,7 +461,7 @@ def encode_channel(x):
 
 def write(pk, data, gain):
     """header: "ATSP", u32 version 3, u32 samples, u32 zones, u32 data offset, u32 flags, f32 level trim;
-    per sample { u32 byte offset, u32 frames }; zones; data (per sample: u32 len0, u32 len1, streams)."""
+    per sample { u32 byte offset, u32 frames }; zones; with FLAG_BOWED a u32 loop start per sample (0 = none); data (per sample: u32 len0, u32 len1, streams)."""
     mono = pk.flags & FLAG_MONO
     coded = []
     for x in data:
@@ -389,16 +475,22 @@ def write(pk, data, gain):
         off += len(c)
     zt = bytearray()
     zone_list = sorted(pk.zones.items())
-    for (t, lo, hi, root, lv, hv), idxs in zone_list:
+    for key, idxs in zone_list:
+        t, lo, hi, root, lv, hv = key[:6]
+        art = key[6] if len(key) > 6 else 0
         idxs = idxs[:MAX_RR]
-        zt += struct.pack("<BBBBBBBB", t, lo, hi, root, lv, hv, len(idxs), 0)
+        zt += struct.pack("<BBBBBBBB", t, lo, hi, root, lv, hv, len(idxs), art)
         zt += struct.pack("<%dH" % MAX_RR, *(idxs + [0] * (MAX_RR - len(idxs))))
-    doff = 28 + len(table) + len(zt)
+    loops = b""
+    if pk.flags & FLAG_BOWED:
+        loops = struct.pack("<%dI" % len(data), *[pk.loops.get(i, 0) for i in range(len(data))])
+    doff = 28 + len(table) + len(zt) + len(loops)
     path = os.path.join(OUT, pk.name + ".smp")
     with open(path, "wb") as f:
         f.write(struct.pack("<4sIIIIIf", b"ATSP", 3, len(data), len(zone_list), doff, pk.flags, gain))
         f.write(table)
         f.write(zt)
+        f.write(loops)
         for c in coded:
             f.write(c)
     if os.environ.get("FRETTY_DUMP_RAW"):

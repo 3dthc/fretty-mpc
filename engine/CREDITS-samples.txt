@@ -4,4 +4,5 @@ Fretty's instruments (all CC0 1.0 Universal, public domain dedication):
   folkharp.smp     VCSL Folk Harp, Versilian Studios - https://github.com/sgossner/VCSL
   concertharp.smp  VCSL Concert Harp, Versilian Studios
   strumstick.smp   VCSL Strumstick, Versilian Studios
+  violin.smp       VSCO 2 CE Solo Violin, Versilian Studios - https://github.com/sgossner/VSCO-2-CE
 Repacked for Fretty: trimmed, 16-bit, losslessly compressed.

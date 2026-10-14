@@ -1,18 +1,20 @@
 /* Fretty: a sampled guitar (and friends) for MPC OS (mpc_engine, see mpc-vst-plugins wrapper/engine.h).
  *
- * Layer A, the instrument: one of five sampled instruments (all CC0, tools/pack_samples.py, engine/<name>.smp):
+ * Layer A, the instrument: one of seven sampled instruments (all CC0, tools/pack_samples.py, engine/<name>.smp):
  * an archtop (Karoryfer Shinyguitar: each take is a pickup + mic pair, so BLEND mixes them per sample), an electric
- * (Karoryfer Emilyguitar, mono), a folk harp, a concert harp and a strumstick (VCSL, stereo). Each sample file is
- * losslessly compressed on disk and decoded into RAM the first time an instrument is used (shared by every instance).
+ * (Karoryfer Emilyguitar, mono), a folk harp, a concert harp and a strumstick (VCSL, stereo), and a violin bowed or
+ * plucked (VSCO 2 CE, stereo; the bowed notes loop, so they sustain while held). Each sample file is losslessly
+ * compressed on disk and decoded into RAM the first time an instrument is used (shared by every instance).
  *
  * Playing model: six strings. Each note-on batch (a chord arrives in one block) is assigned to strings
  * (open strings, capo, drop tuning, a hand position that follows the music, or a fixed POSITION).
  * One sound per string: a new note on a string chokes the old one, or with LEGATO and the old key still
  * held, slurs into it (hammer-on / pull-off). STRUM spreads a chord low string to high.
- * ENGINE layers a plucked-string model (Karplus-Strong) on every note.
+ * PLUCK layers a plucked-string model (Karplus-Strong) on every note (off at zero). SWELL / RELEASE shape layer A.
  *
  * Layer B, the synth: every note also plays two detuned oscillators (sine, triangle, saw or square) through a
- * resonant low-pass filter and an ADSR envelope. A and B switch on and off independently (solo either).
+ * resonant low-pass filter (with an envelope amount) and an ADSR envelope. A and B switch on and off independently
+ * (solo either); with both on, MIX balances them (the middle is both at full).
  *
  * Effects on the mix: DRIVE (an amp-style soft clipper), CHORUS, SPACE (reverb). Each is fully bypassed at zero. */
 #define _GNU_SOURCE
@@ -42,9 +44,12 @@ typedef struct { uint32_t off, frames; } ent_t;
 typedef struct __attribute__((packed)) { uint8_t type, lo, hi, root, lv, hv, nrr, pad; uint16_t rr[MAX_RR]; } zone_t;
 
 enum { BANK_NONE, BANK_LOADING, BANK_READY, BANK_FAILED };
-enum { FLAG_DUAL = 1, FLAG_MONO = 2 };
-#define NINST 5
-static const char *INST_FILE[NINST] = { "acoustic", "electric", "folkharp", "concertharp", "strumstick" };
+enum { FLAG_DUAL = 1, FLAG_MONO = 2, FLAG_BOWED = 4 };
+#define NINST 6                     /* sample files */
+static const char *INST_FILE[NINST] = { "acoustic", "electric", "folkharp", "concertharp", "strumstick", "violin" };
+#define NCHOICE 7                   /* the INSTRUMENT options: a file and, for files with articulations, which one */
+static const int CHOICE_BANK[NCHOICE] = { 0, 1, 2, 3, 4, 5, 5 };
+static const int CHOICE_ART[NCHOICE] = { -1, -1, -1, -1, -1, 0, 1 };      /* violin: 0 bowed, 1 pizzicato */
 
 typedef struct {
     int state, stop;
@@ -53,6 +58,7 @@ typedef struct {
     uint32_t nsamp, nzone, flags;
     float gain;
     const ent_t *ent; const zone_t *zone;
+    const uint32_t *loop;                     /* FLAG_BOWED: per sample, the loop start (0 = none; ends at the end) */
     int16_t *head; uint32_t *hoff, *hlen;     /* all samples, decoded to interleaved stereo */
     pthread_t loader; int have_loader, own_tables;
 } bank_t;
@@ -66,7 +72,8 @@ static int bank_state_of(int i) { return __atomic_load_n(&g_banks[i].state, __AT
 
 /* ---------- sample file (written by tools/pack_samples.py) ----------
  * header: "ATSP", u32 version (3), u32 samples, u32 zones, u32 data offset, u32 flags (1 = pickup + mic pair,
- * 2 = mono), f32 level trim; then per sample { u32 byte offset into data, u32 frames }, then the zones (zone_t), then
+ * 2 = mono, 4 = bowed), f32 level trim; then per sample { u32 byte offset into data, u32 frames }, then the zones
+ * (zone_t; its last byte is the articulation in a file that has them), with flag 4 a u32 loop start per sample, then
  * the data. Each sample: u32 len0, u32 len1, then one or two bitstreams (left/pickup, right/mic; mono has one). A stream is 1024-frame blocks: a header byte
  * (order << 5 | k), then one Rice code per frame (a run of q zeros, a 1, k low bits; 24 zeros = a raw 20-bit value)
  * of the zigzagged residual of a fixed order-0..3 predictor that runs across blocks. Lossless 16-bit. */
@@ -134,12 +141,13 @@ static void *loader_main(void *arg) {
         if (memcmp(m, "ATSP", 4)) goto fail;
         memcpy(&ver, m + 4, 4); memcpy(&ns, m + 8, 4); memcpy(&nz, m + 12, 4); memcpy(&doff, m + 16, 4);
         memcpy(&flags, m + 20, 4); memcpy(&gain, m + 24, 4);
-        size_t need = 28 + (size_t)ns * sizeof(ent_t) + (size_t)nz * sizeof(zone_t);
+        size_t need = 28 + (size_t)ns * sizeof(ent_t) + (size_t)nz * sizeof(zone_t) + ((flags & FLAG_BOWED) ? (size_t)ns * 4 : 0);
         if (ver != 3 || ns == 0 || ns > 65535 || nz == 0 || nz > 1024 || doff != need || doff > b->maplen) goto fail;
         if (!(gain > 0.05f && gain < 20.0f)) gain = 1.0f;
         b->nsamp = ns; b->nzone = nz; b->flags = flags; b->gain = gain;
         b->ent = (const ent_t *)(m + 28);
         b->zone = (const zone_t *)(m + 28 + ns * sizeof(ent_t));
+        b->loop = (flags & FLAG_BOWED) ? (const uint32_t *)(m + 28 + ns * sizeof(ent_t) + nz * sizeof(zone_t)) : NULL;
         for (uint32_t z = 0; z < nz; z++)
             for (int k = 0; k < b->zone[z].nrr && k < MAX_RR; k++)
                 if (b->zone[z].rr[k] >= ns) goto fail;
@@ -147,6 +155,7 @@ static void *loader_main(void *arg) {
         for (uint32_t i = 0; i < ns; i++) {
             if (b->ent[i].frames < 8 || b->ent[i].frames > 60 * 44100 || (size_t)b->ent[i].off + 8 > dlen) goto fail;
             total += b->ent[i].frames;
+            if (b->loop && b->loop[i] && b->loop[i] + 64 >= b->ent[i].frames) goto fail;
         }
         b->head = malloc(total * 4);
         b->hoff = malloc(ns * sizeof(uint32_t));
@@ -171,9 +180,11 @@ static void *loader_main(void *arg) {
     {   /* keep only the small tables and the decoded audio; drop the compressed file */
         ent_t *e = malloc(b->nsamp * sizeof(ent_t));
         zone_t *z = malloc(b->nzone * sizeof(zone_t));
-        if (!e || !z) { free(e); free(z); goto fail; }
+        uint32_t *lp = b->loop ? malloc(b->nsamp * 4) : NULL;
+        if (!e || !z || (b->loop && !lp)) { free(e); free(z); free(lp); goto fail; }
         memcpy(e, b->ent, b->nsamp * sizeof(ent_t)); memcpy(z, b->zone, b->nzone * sizeof(zone_t));
-        b->ent = e; b->zone = z;
+        if (lp) memcpy(lp, b->loop, b->nsamp * 4);
+        b->ent = e; b->zone = z; b->loop = lp;
         free(b->map); b->map = NULL;
         b->own_tables = 1;
     }
@@ -214,7 +225,7 @@ static void banks_detach(void) {
             b->stop = 1;
             if (b->have_loader) pthread_join(b->loader, NULL);
             free(b->map);
-            if (b->own_tables) { free((void *)b->ent); free((void *)b->zone); }
+            if (b->own_tables) { free((void *)b->ent); free((void *)b->zone); free((void *)b->loop); }
             free(b->head); free(b->hoff); free(b->hlen);
             memset(b, 0, sizeof *b);
         }
@@ -231,21 +242,26 @@ enum {
     P_ARTIC, P_LEGATO, P_STRUM, P_DROP, P_ENGINE,
     P_ENG_MIX, P_ENG_COLOR, P_ENG_SUSTAIN, P_ENG_DETUNE, P_SPACE, P_VOLUME, P_THEME,
     P_INSTRUMENT, P_DRIVE, P_CHORUS, P_A_ON, P_B_ON, P_A_LEVEL, P_B_LEVEL,
-    P_WAVE, P_OCTAVE, P_SYN_DETUNE, P_CUTOFF, P_RESO, P_ATTACK, P_DECAY, P_SUSTAIN, P_RELEASE, NP
+    P_WAVE, P_OCTAVE, P_SYN_DETUNE, P_CUTOFF, P_RESO, P_ATTACK, P_DECAY, P_SUSTAIN, P_RELEASE,
+    P_STRUM_MODE, P_MIX, P_A_ATTACK, P_A_RELEASE, P_A_VEL, P_B_VEL, P_B_FENV, NP
 };
+/* P_STRUM, P_ENGINE, P_A_LEVEL and P_B_LEVEL are kept (parameter order is fixed) but no longer used: STRUM MODE,
+ * the PLUCK level (on above zero) and MIX replace them. */
 static const char *PKEY[NP] = {
     "blend", "tone", "damp", "vibrato", "position", "capo", "strum_speed", "noise",
     "artic", "legato", "strum", "drop", "engine",
     "eng_mix", "eng_color", "eng_sustain", "eng_detune", "space", "volume", "theme",
     "instrument", "drive", "chorus", "a_on", "b_on", "a_level", "b_level",
-    "wave", "octave", "syn_detune", "cutoff", "resonance", "attack", "decay", "sustain", "release"
+    "wave", "octave", "syn_detune", "cutoff", "resonance", "attack", "decay", "sustain", "release",
+    "strum_mode", "mix", "a_attack", "a_release", "a_vel", "b_vel", "b_fenv"
 };
 static const float PDEF[NP] = {
     0.35f, 1.0f, 0.0f, 0.0f, 0, 0, 0.35f, 0.55f,
     0, 1, 1, 0, 0,
-    0.25f, 0.55f, 0.60f, 0.25f, 0.0f, 0.80f, 0,
+    0.0f, 0.55f, 0.60f, 0.25f, 0.0f, 0.80f, 0,
     0, 0, 0, 1, 0, 0.80f, 0.50f,
-    2, 0, 0.15f, 0.60f, 0.15f, 0.02f, 0.40f, 0.60f, 0.30f
+    2, 0, 0.15f, 0.60f, 0.15f, 0.02f, 0.40f, 0.60f, 0.30f,
+    1, 0.5f, 0, 0, 1.0f, 0.65f, 0
 };
 static const int OPEN[NSTR] = { 40, 45, 50, 55, 59, 64 };
 static const char *NOTE_NAME[12] = { "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B" };
@@ -267,6 +283,7 @@ typedef struct {
     float fade, fade_step;
     float lp, lpr, lp_k_scale;
     int palm, bank;
+    uint32_t loop_s, loop_e;           /* a bowed sustain loops [loop_s, loop_e) while it sounds */
     /* synth layer */
     int syn_on, syn_stage;          /* 0 attack, 1 decay/sustain, 2 release, 3 done */
     float syn_env, syn_hz, syn_vel, ph1, ph2, ic1, ic2;
@@ -297,7 +314,9 @@ typedef struct {
     float *cho; int cho_w; float cho_ph;
     char chord[32];
     uint8_t disp_vib[NSTR], disp_fret[NSTR];   /* what the page's string pictures show (s<n>_vib / s<n>_fret) */
-    int rev, last_state, cur_bank;
+    int rev, last_state, cur_bank, cur_choice;
+    double clock;                    /* seconds of audio rendered */
+    double last_strum; int strum_up;
 } inst_t;
 
 static uint32_t rnd(inst_t *s) { s->rng ^= s->rng << 13; s->rng ^= s->rng >> 17; s->rng ^= s->rng << 5; return s->rng; }
@@ -351,12 +370,13 @@ static void reverb_frame(inst_t *s, float in, float *ol, float *orr) {
 }
 
 /* ---------- zones ---------- */
-static const zone_t *find_zone(const bank_t *b, int type, int key, int vel) {
+static const zone_t *find_zone(const bank_t *b, int type, int key, int vel, int art) {
     const zone_t *best = NULL;
     int bd = 1000;
     for (uint32_t z = 0; z < b->nzone; z++) {
         const zone_t *zz = &b->zone[z];
         if (zz->type != type || !zz->nrr) continue;
+        if (art >= 0 && type == ZT_NOTE && zz->pad != art) continue;
         if (type == ZT_NOTE && (vel < zz->lv || vel > zz->hv)) continue;
         if (key >= zz->lo && key <= zz->hi) return zz;
         if (type == ZT_NOISE) continue;
@@ -416,7 +436,7 @@ static void start_release_noise(inst_t *s, const voice_t *nv) {
     if (s->p[P_A_ON] < 0.5f) return;
     float amt = s->p[P_NOISE];
     if (amt < 0.01f) return;
-    const zone_t *z = find_zone(b, ZT_RELEASE, nv->key, 64);
+    const zone_t *z = find_zone(b, ZT_RELEASE, nv->key, 64, -1);
     if (!z) return;
     float level = nv->denv * nv->rel * nv->fade;
     if (level < 0.05f) return;
@@ -431,7 +451,9 @@ static void release_voice(inst_t *s, voice_t *v) {
     if (!v->on || v->releasing) return;
     v->held = 0;
     v->releasing = 1;
-    float sec = v->palm ? 0.05f : 0.18f;
+    float sec = v->palm ? 0.05f : v->loop_e ? 0.22f : 0.18f;          /* a bow leaves the string a little slower */
+    float ar = s->p[P_A_RELEASE];
+    if (ar > 0.005f) { float t = 0.05f * powf(60.0f, ar); if (t > sec) sec = t; }   /* RELEASE: let it ring on */
     v->rel_k = expf(-1.0f / (sec * SR));
     if (v->syn_on && v->syn_stage < 2) v->syn_stage = 2;
     if (v->kind == VK_NOTE) start_release_noise(s, v);
@@ -452,43 +474,52 @@ static void excite_ks(inst_t *s, voice_t *v, int key, int vel) {
         v->ks[i] = lp;
     }
     v->ks_w = n; v->ks_prev = 0; v->ks_on = 1; v->ks_hz = hz;
-    v->ks_gain = 0.25f + 0.75f * (vel / 127.0f);
+    v->ks_gain = 1.0f - s->p[P_A_VEL] * 0.75f * (1.0f - vel / 127.0f);
     v->ks_level = 1;
 }
 
 /* A string note: choke what the string was playing (or slur from it), then start the sample (+ the pluck). */
+static int bowed(const inst_t *s) { return CHOICE_ART[s->cur_choice] == 0; }
+
 static void start_note(inst_t *s, int key, int vel, int str, int fret, int delay, int allow_legato) {
     const bank_t *b = &g_banks[s->cur_bank];
-    const zone_t *z = find_zone(b, ZT_NOTE, key, vel);
+    int art = CHOICE_ART[s->cur_choice], bow = art == 0;
+    const zone_t *z = find_zone(b, ZT_NOTE, key, vel, art);
     if (!z) return;
     int legato = 0;
     int old = str >= 0 ? s->str_voice[str] : -1;
     if (old >= 0 && s->v[old].on) {
         voice_t *ov = &s->v[old];
-        legato = allow_legato && s->p[P_LEGATO] > 0.5f && ov->held && !ov->releasing && ov->kind == VK_NOTE && abs(key - ov->key) <= 5;
+        legato = allow_legato && s->p[P_LEGATO] > 0.5f && ov->held && !ov->releasing && ov->kind == VK_NOTE &&
+                 abs(key - ov->key) <= (bow ? 12 : 5);
         ov->held = 0;
-        choke(ov, legato ? 12.0f : 6.0f);
+        choke(ov, legato ? (bow ? 45.0f : 12.0f) : 6.0f);
     }
     voice_t *v = alloc_voice(s);
     float span = (float)(z->hv - z->lv);
     float g = 0.6f + 0.4f * (span > 0 ? (vel - z->lv) / span : 1.0f);
     if (vel < 40) g *= 0.25f + 0.75f * vel / 40.0f;      /* soft playing gets properly soft, not just the soft layer */
-    voice_common(s, v, VK_NOTE, str, key, pick_rr(s, b, z), (float)(key - z->root), g);
+    g = 1.0f - s->p[P_A_VEL] * (1.0f - g);               /* VELOCITY (A): how much the gain follows; layers always do */
+    uint32_t smp = pick_rr(s, b, z);
+    voice_common(s, v, VK_NOTE, str, key, smp, (float)(key - z->root), g);
     v->bank = s->cur_bank;
     v->held = 1;
+    if (bow && b->loop && b->loop[smp]) { v->loop_s = b->loop[smp]; v->loop_e = b->ent[smp].frames; }
     if (s->p[P_B_ON] > 0.5f) {         /* the synth layer plays the same note */
         v->syn_on = 1; v->syn_stage = 0; v->syn_env = 0;
         v->syn_hz = 440.0f * powf(2.0f, (key - 69) / 12.0f + lroundf(s->p[P_OCTAVE]));
-        v->syn_vel = 0.35f + 0.65f * vel / 127.0f;
+        v->syn_vel = 1.0f - s->p[P_B_VEL] * (1.0f - vel / 127.0f);
         v->ph1 = frnd(s); v->ph2 = frnd(s);
     }
     v->delay = delay;
-    int palm = s->p[P_ARTIC] > 0.5f;
+    float sw = s->p[P_A_ATTACK];                         /* SWELL: fade the note in, like a volume knob */
+    if (sw > 0.005f) v->att_step = 1.0f / (0.005f * powf(400.0f, sw) * SR);
+    int palm = s->p[P_ARTIC] > 0.5f && art != 1;       /* pizzicato is already short */
     v->palm = palm;
     if (legato) {
-        v->pos = 0.045 * SR;        /* past the pick attack: the finger, not the pick, sounds the note */
-        v->gain *= 0.78f;
-        v->att_step = 1.0f / (0.006f * SR);
+        v->pos = (bow ? 0.12 : 0.045) * SR;   /* past the attack: the finger (or the same bow), not a new pick */
+        v->gain *= bow ? 0.92f : 0.78f;
+        v->att_step = 1.0f / ((bow ? 0.035f : 0.006f) * SR);
     }
     float d = s->p[P_DAMP];
     if (palm) { v->hold = 0.012f; v->dk = expf(-1.0f / (0.09f * SR)); v->lp_k_scale = 0.38f; }
@@ -497,7 +528,7 @@ static void start_note(inst_t *s, int key, int vel, int str, int fret, int delay
         float tau = 0.12f + 6.0f * (1 - d) * (1 - d);
         v->dk = expf(-1.0f / (tau * SR));
     }
-    if (s->p[P_ENGINE] > 0.5f && v->ks) excite_ks(s, v, key, vel);
+    if (s->p[P_ENG_MIX] > 0.005f && v->ks) excite_ks(s, v, key, vel);
     if (str >= 0) {
         s->str_voice[str] = (int)(v - s->v);
         s->str_key[str] = key;
@@ -508,7 +539,7 @@ static void start_note(inst_t *s, int key, int vel, int str, int fret, int delay
 static void start_noise(inst_t *s, int key, int vel) {
     const bank_t *b = &g_banks[s->cur_bank];
     if (s->p[P_A_ON] < 0.5f) return;
-    const zone_t *z = find_zone(b, ZT_NOISE, key, vel);
+    const zone_t *z = find_zone(b, ZT_NOISE, key, vel, -1);
     if (!z) return;
     voice_t *v = alloc_voice(s);
     voice_common(s, v, VK_NOISE, -1, key, pick_rr(s, b, z), 0, 0.3f + 0.7f * vel / 127.0f);
@@ -581,13 +612,23 @@ static void play_batch(inst_t *s, pend_t *pd, int n) {
         float m = fsum / fcount;
         s->hand = 0.6f * s->hand + 0.4f * (m > 1 ? m - 1 : m);   /* the hand sits about a fret below the notes */
     }
-    int strum = n > 1 && s->p[P_STRUM] > 0.5f;
-    if (strum) qsort(pd, n, sizeof *pd, cmp_str);
-    float gap = (0.004f + 0.036f * s->p[P_STRUM_SPEED]) * SR;
+    /* STRUM: off, down (low string first), up (high first, a little lighter) or alternating down / up while the
+     * chords keep coming (a gap over a second starts again on a down stroke). A bowed violin plays chords together. */
+    int mode = (int)lroundf(s->p[P_STRUM_MODE]);
+    int strum = n > 1 && mode > 0 && !bowed(s);
+    int up = 0;
+    if (strum) {
+        if (mode == 2) up = 1;
+        else if (mode == 3) { up = (s->clock - s->last_strum < 1.0) ? !s->strum_up : 0; }
+        s->strum_up = up; s->last_strum = s->clock;
+        qsort(pd, n, sizeof *pd, cmp_str);
+        if (up) for (int i = 0; i < n / 2; i++) { pend_t t = pd[i]; pd[i] = pd[n - 1 - i]; pd[n - 1 - i] = t; }
+    }
+    float gap = (0.004f + 0.036f * s->p[P_STRUM_SPEED]) * SR * (up ? 0.8f : 1.0f);
     for (int i = 0; i < n; i++) {
         int delay = strum ? (int)(i * gap) : 0;
         int vel = pd[i].vel;
-        if (strum) { vel -= i * 3; if (vel < 1) vel = 1; }
+        if (strum) { if (up) vel = vel * 85 / 100; vel -= i * 3; if (vel < 1) vel = 1; }
         start_note(s, pd[i].key, vel, pd[i].str, pd[i].fret, delay, n == 1);
         if (pd[i].off) {
             int vi = s->str_voice[pd[i].str];
@@ -661,6 +702,19 @@ static int fmt_display(inst_t *s, int i, char *buf, int n) {
     case P_OCTAVE: { int k = (int)lroundf(v); return snprintf(buf, n, k > 0 ? "+%d OCT" : k < 0 ? "%d OCT" : "0 OCT", k); }
     case P_SYN_DETUNE: return snprintf(buf, n, "%d ct", (int)lroundf(v * 50));
     case P_CUTOFF: { float hz = 30.0f * powf(2.0f, v * 9.3f); return hz >= 1000 ? snprintf(buf, n, "%.1f kHz", hz / 1000) : snprintf(buf, n, "%d Hz", (int)hz); }
+    case P_MIX: {
+        int a = (int)lroundf(fminf(1.0f, 2.0f * (1.0f - v)) * 100), bb = (int)lroundf(fminf(1.0f, 2.0f * v) * 100);
+        return snprintf(buf, n, "A %d / B %d", a, bb); }
+    case P_A_ATTACK: {
+        if (v <= 0.005f) return snprintf(buf, n, "OFF");
+        float t = 0.005f * powf(400.0f, v);
+        return t >= 1 ? snprintf(buf, n, "%.2f s", t) : snprintf(buf, n, "%d ms", (int)lroundf(t * 1000)); }
+    case P_A_RELEASE: {
+        if (v <= 0.005f) return snprintf(buf, n, "NATURAL");
+        float t = 0.05f * powf(60.0f, v);
+        return t >= 1 ? snprintf(buf, n, "%.2f s", t) : snprintf(buf, n, "%d ms", (int)lroundf(t * 1000)); }
+    case P_B_FENV: return v < 0.005f ? snprintf(buf, n, "OFF") : snprintf(buf, n, "+%.1f OCT", 6.0f * v);
+    case P_ENG_MIX: return v <= 0.005f ? snprintf(buf, n, "OFF") : snprintf(buf, n, "%d%%", (int)lroundf(v * 100));
     case P_ATTACK: case P_DECAY: case P_RELEASE: {
         float t = 0.001f * powf(4000.0f, v);
         return t >= 1 ? snprintf(buf, n, "%.2f s", t) : snprintf(buf, n, "%d ms", (int)lroundf(t * 1000)); }
@@ -677,6 +731,7 @@ static int eng_get_param(void *inst, const char *key, char *buf, int n) {
     if (!strcmp(key, "status"))
         return snprintf(buf, n, "%s", st == BANK_READY ? "READY" : st == BANK_FAILED ? "SAMPLES MISSING" : "LOADING...");
     if (!strcmp(key, "chord")) return snprintf(buf, n, "%s", s->chord);
+    if (!strcmp(key, "load_state")) return snprintf(buf, n, "%d", st == BANK_READY ? 0 : st == BANK_FAILED ? 2 : 1);
     if (key[0] == 's' && key[1] >= '1' && key[1] <= '6' && key[2] == '_') {
         int st = key[1] - '1';
         if (!strcmp(key + 3, "vib")) return snprintf(buf, n, "%d", s->disp_vib[st]);
@@ -713,7 +768,7 @@ static void handle_events(inst_t *s) {
             if (!ready) continue;
             if (d1 == 22) { s->p[P_ARTIC] = 0; s->rev++; continue; }          /* keyswitches: A#0 sustain, B0 palm mute */
             if (d1 == 23) { s->p[P_ARTIC] = 1; s->rev++; continue; }
-            if (d1 < 28) { start_noise(s, d1, d2); continue; }                 /* dead strings and body knocks */
+            if (d1 < 28) { start_noise(s, d1, d2); continue; }                 /* (none on the harps, strumstick, violin) */                 /* dead strings and body knocks */
             if (np < (int)(sizeof pd / sizeof pd[0])) { pend_t p = { d1, d2, 0, -1, 0 }; pd[np++] = p; }
         } else if (st == 0x80 || (st == 0x90 && d2 == 0)) {
             s->key_down[d1] = 0;
@@ -765,8 +820,9 @@ static void eng_render(void *inst, int16_t *out, int frames) {
     inst_t *s = inst;
     int want = (int)lroundf(s->p[P_INSTRUMENT]);
     if (want < 0) want = 0;
-    if (want >= NINST) want = NINST - 1;
-    if (want != s->cur_bank) { s->cur_bank = want; s->rev++; }
+    if (want >= NCHOICE) want = NCHOICE - 1;
+    if (want != s->cur_choice) { s->cur_choice = want; s->rev++; }
+    if (CHOICE_BANK[want] != s->cur_bank) { s->cur_bank = CHOICE_BANK[want]; s->rev++; }
     bank_request(s->cur_bank);
     handle_events(s);
     float mixL[128], mixR[128];
@@ -780,14 +836,17 @@ static void eng_render(void *inst, int16_t *out, int frames) {
     s->vib_ph += 2 * PI_F * 5.2f * frames / SR;
     if (s->vib_ph > 2 * PI_F) s->vib_ph -= 2 * PI_F;
     float vib_sin = sinf(s->vib_ph);
-    float eng_on = s->p[P_ENGINE] > 0.5f, eng_mix = s->p[P_ENG_MIX];
+    float eng_mix = s->p[P_ENG_MIX];
+    int eng_on = eng_mix > 0.005f;
     float ks_fb = 0.94f + 0.0595f * sqrtf(s->p[P_ENG_SUSTAIN]);
     float ks_c = 0.15f + 0.8f * s->p[P_ENG_COLOR];
-    int a_on = s->p[P_A_ON] > 0.5f;
-    float a_gain = s->p[P_A_LEVEL] / 0.8f;
+    int a_on = s->p[P_A_ON] > 0.5f, b_on = s->p[P_B_ON] > 0.5f;
+    float mix = s->p[P_MIX];
+    float a_gain = (a_on && b_on) ? fminf(1.0f, 2.0f * (1.0f - mix)) : 1.0f;      /* MIX: the middle is both at full */
     /* synth settings for this block */
     int wave = (int)lroundf(s->p[P_WAVE]); if (wave < 0) wave = 0; if (wave > 3) wave = 3;
-    float b_gain = s->p[P_B_LEVEL] * 0.45f;
+    float b_gain = 0.32f * ((a_on && b_on) ? fminf(1.0f, 2.0f * mix) : 1.0f);
+    float fenv = s->p[P_B_FENV] * 6.0f;                           /* the filter envelope, in octaves at full */
     float det = s->p[P_SYN_DETUNE] * 50.0f / 1200.0f;            /* octaves, split between the two oscillators */
     float d_up = powf(2.0f, det * 0.5f), d_dn = 1.0f / d_up;
     float cut0 = 30.0f * powf(2.0f, s->p[P_CUTOFF] * 9.3f);
@@ -832,7 +891,7 @@ static void eng_render(void *inst, int16_t *out, int frames) {
         int syn = v->syn_on && v->syn_stage < 3;
         float g_svf = 0, a1 = 0, a2 = 0, a3 = 0, dt1 = 0, dt2 = 0;
         if (syn) {
-            float fc = cut0 * powf(2.0f, (v->key - 60) / 24.0f);
+            float fc = cut0 * powf(2.0f, (v->key - 60) / 24.0f + fenv * v->syn_env);
             if (fc > 18000.0f) fc = 18000.0f;
             g_svf = tanf(PI_F * fc / SR);
             a1 = 1.0f / (1.0f + g_svf * (g_svf + kres)); a2 = g_svf * a1; a3 = g_svf * a2;
@@ -857,11 +916,17 @@ static void eng_render(void *inst, int16_t *out, int frames) {
             float xl = 0, xr = 0;
             if (!v->samp_done) {
                 uint32_t ip = (uint32_t)v->pos;
-                if (ip + 3 >= e->frames) v->samp_done = 1;
+                if (!v->loop_e && ip + 3 >= e->frames) v->samp_done = 1;
                 else if (a_on) {
                     float t = (float)(v->pos - ip);
+                    uint32_t i1 = ip + 1, i2 = ip + 2;
+                    if (v->loop_e) {         /* the frames after the loop end are the loop start's */
+                        uint32_t ll = v->loop_e - v->loop_s;
+                        if (i1 >= v->loop_e) i1 -= ll;
+                        if (i2 >= v->loop_e) i2 -= ll;
+                    }
                     const int16_t *p0 = frame_ptr(b, v->samp, ip ? ip - 1 : 0), *p1 = frame_ptr(b, v->samp, ip),
-                                  *p2 = frame_ptr(b, v->samp, ip + 1), *p3 = frame_ptr(b, v->samp, ip + 2);
+                                  *p2 = frame_ptr(b, v->samp, i1), *p3 = frame_ptr(b, v->samp, i2);
                     if (stereo) {
                         xl = hermite(p0[0], p1[0], p2[0], p3[0], t) * (1.0f / 32768.0f);
                         xr = hermite(p0[1], p1[1], p2[1], p3[1], t) * (1.0f / 32768.0f);
@@ -873,6 +938,7 @@ static void eng_render(void *inst, int16_t *out, int frames) {
                     }
                     v->pos += rate;
                 } else v->pos += rate;
+                if (v->loop_e && v->pos >= v->loop_e) v->pos -= v->loop_e - v->loop_s;
             }
             v->lp += lpk * (xl - v->lp);
             float x = v->lp * v->gain * bgain * env, y = 0;
@@ -926,6 +992,7 @@ static void eng_render(void *inst, int16_t *out, int frames) {
             }
         }
     }
+    s->clock += frames / SR;
     /* string pictures: how hard each string rings (0-3) and which fret is lit (0 none, 1 open, 2.. fret 1..) */
     for (int st = 0; st < NSTR; st++) {
         int vi = s->str_voice[st], vib = 0, fret = 0;
@@ -997,3 +1064,4 @@ const mpc_engine_t *mpc_engine(void) { return &ENGINE; }
 /* For the offline tools (tools/render_demo.c): an instrument's load state (2 = ready). */
 int fretty_bank_state(void) { return bank_state_of(0); }
 int fretty_bank_state_of(int i) { return i >= 0 && i < NINST ? bank_state_of(i) : -1; }
+int fretty_ninst(void) { return NINST; }

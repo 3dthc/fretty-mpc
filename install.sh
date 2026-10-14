@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
-# Fretty: one-step install, from the two downloaded zips to a zip ready for the MPC.
+# Fretty: one-step install, from the downloaded zips to a zip ready for the MPC.
 #
-#   python3 -m zipfile -e /mnt/c/Users/*/Downloads/fretty-mpc-v0.3.0.zip ~/ && bash ~/fretty-mpc/install.sh
+#   python3 -m zipfile -e /mnt/c/Users/*/Downloads/fretty-mpc-v0.4.0.zip ~/ && bash ~/fretty-mpc/install.sh
 #
 # What it does:
-#   1. finds fretty-instruments-v<version>.zip in your Windows Downloads (or ~) and adds its instruments to engine/
+#   1. finds the fretty-instruments-*-v<version>.zip files in your Windows Downloads (or ~) and adds their instruments
+#      to engine/
 #   2. checks Docker is running and that mpc-vst-plugins is next to this folder (clones it if not)
 #   3. builds the plugin and packages dist/Fretty-<version>-mpc-armv7.zip
 #   4. copies that zip to your Windows Downloads, ready to put on the MPC
 # Safe to run again: each step skips what is already done.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-VERSION="0.3.0"
-INSTR="fretty-instruments-v$VERSION.zip"
+VERSION="0.4.0"
+INSTRUMENTS="acoustic electric folkharp concertharp strumstick violin"
 MPC_VST="${MPC_VST:-$HERE/../mpc-vst-plugins}"
 step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 fail() { printf '\n\033[31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -24,27 +25,28 @@ DL_DIRS+=("$HOME" "$HERE/..")
 
 # ---- 1. instruments
 step "1/4  Instruments"
-need=""
-for f in acoustic electric folkharp concertharp strumstick; do
-  [ -f "$HERE/engine/$f.smp" ] || need="$need $f"
-done
-if [ -n "$need" ]; then
-  zip=""
+missing() { local m=""; for f in $INSTRUMENTS; do [ -f "$HERE/engine/$f.smp" ] || m="$m $f"; done; echo "$m"; }
+if [ -n "$(missing)" ]; then
+  found=0
   for d in "${DL_DIRS[@]}"; do
-    [ -f "$d/$INSTR" ] && { zip="$d/$INSTR"; break; }
+    for zip in "$d"/fretty-instruments-*-v"$VERSION".zip; do
+      [ -f "$zip" ] || continue
+      echo "unpacking $zip"
+      tmp="$(mktemp -d)"
+      python3 -m zipfile -e "$zip" "$tmp"
+      cp "$tmp"/fretty-mpc/engine/*.smp "$HERE/engine/"
+      rm -rf "$tmp"
+      found=$((found + 1))
+    done
+    if [ "$found" -gt 0 ]; then break; fi
   done
-  [ -n "$zip" ] || fail "$INSTR not found in: ${DL_DIRS[*]}
-       Download it next to fretty-mpc-v$VERSION.zip and run this again."
-  echo "unpacking $zip"
-  tmp="$(mktemp -d)"
-  python3 -m zipfile -e "$zip" "$tmp"
-  cp "$tmp"/fretty-mpc/engine/*.smp "$HERE/engine/"
-  rm -rf "$tmp"
+  [ "$found" -gt 0 ] || fail "no fretty-instruments-*-v$VERSION.zip found in: ${DL_DIRS[*]}
+       Download them next to fretty-mpc-v$VERSION.zip and run this again."
 fi
-for f in acoustic electric folkharp concertharp strumstick; do
-  [ -f "$HERE/engine/$f.smp" ] || fail "engine/$f.smp still missing (is $INSTR complete?)"
-done
-echo "all 5 instruments present"
+m="$(missing)"
+[ -z "$m" ] || fail "still missing in engine/:$m
+       Download every fretty-instruments-*-v$VERSION.zip into the same folder and run this again."
+echo "all 6 instrument files present"
 
 # ---- 2. tools
 step "2/4  Checking tools"

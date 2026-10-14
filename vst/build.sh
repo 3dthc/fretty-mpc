@@ -11,12 +11,12 @@ MPC_VST="${MPC_VST:-$REPO/../mpc-vst-plugins}"
 [ -f "$MPC_VST/tools/build_port.sh" ] || { echo "mpc-vst-plugins not found at $MPC_VST (set MPC_VST=...)" >&2; exit 1; }
 
 missing=""
-for f in acoustic electric folkharp concertharp strumstick; do
+for f in acoustic electric folkharp concertharp strumstick violin; do
   [ -f "$REPO/engine/$f.smp" ] || missing="$missing $f.smp"
 done
 if [ -n "$missing" ]; then
   echo "missing instrument files in $REPO/engine:$missing" >&2
-  echo "(unzip the instruments zip into this folder, or rebuild them: tools/pack_samples.py, see README)" >&2
+  echo "(unzip the instruments zips into this folder, or rebuild them: tools/pack_samples.py, see README)" >&2
   exit 1
 fi
 

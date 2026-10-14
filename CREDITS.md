@@ -7,6 +7,8 @@
   direct. https://github.com/sfzinstruments/karoryfer.emilyguitar
 - **Folk Harp, Concert Harp, Strumstick** from the **Versilian Community Sample Library (VCSL)** by Versilian Studios.
   https://github.com/sgossner/VCSL
+- **Violin, Violin Pizz** from **VSCO 2 Community Edition** (Solo Violin: arco with vibrato, pizzicato) by Versilian
+  Studios. https://github.com/sgossner/VSCO-2-CE (the bowed notes get a crossfaded loop so held notes sustain)
 
 `tools/pack_samples.py` repacks only the WAV files and their note / velocity mapping (trimmed, 16-bit, losslessly
 compressed). None of the sources' GUI artwork, photos or signed bank files are used.
