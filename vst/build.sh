@@ -13,7 +13,7 @@ SHINY="$REPO/third_party/karoryfer.shinyguitar"
 SHINY_URL=https://github.com/sfzinstruments/karoryfer.shinyguitar
 SHINY_COMMIT=57243cca85277dbcc120ce17c6178032f93c80f3
 
-[ -x "$MPC_VST/tools/build_port.sh" ] || { echo "mpc-vst-plugins not found at $MPC_VST (set MPC_VST=...)" >&2; exit 1; }
+[ -f "$MPC_VST/tools/build_port.sh" ] || { echo "mpc-vst-plugins not found at $MPC_VST (set MPC_VST=...)" >&2; exit 1; }
 
 if [ ! -f "$REPO/engine/archtop.smp" ]; then
   if [ ! -d "$SHINY/.git" ]; then
@@ -24,5 +24,5 @@ if [ ! -f "$REPO/engine/archtop.smp" ]; then
   python3 -I "$REPO/tools/pack_samples.py" "$SHINY" "$REPO/engine"
 fi
 
-"$MPC_VST/tools/build_port.sh" "$HERE/vst.json"
+bash "$MPC_VST/tools/build_port.sh" "$HERE/vst.json"
 echo "built: $HERE/build/archtop.so  (+ $REPO/engine/ ships next to it)"

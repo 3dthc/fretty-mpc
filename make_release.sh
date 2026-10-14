@@ -9,7 +9,7 @@ MPC_VST="${MPC_VST:-$HERE/../mpc-vst-plugins}"
 VERSION="${1:-0.1.0}"
 B="$HERE/vst/build"
 
-"$HERE/vst/build.sh"
+bash "$HERE/vst/build.sh"
 
 [ -f "$B/archtop.so" ] || { echo "build failed: no $B/archtop.so" >&2; exit 1; }
 [ -f "$HERE/engine/archtop.smp" ] || { echo "missing $HERE/engine/archtop.smp" >&2; exit 1; }
