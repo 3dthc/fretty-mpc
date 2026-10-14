@@ -2,13 +2,29 @@
 
 A guitar instrument for Akai MPC OS standalone devices (native VST2, built with
 [mpc-vst-plugins](https://github.com/sd88me/mpc-vst-plugins)), with a synth layer as a twist.
-Status: **v0.8.1, testing on a device.**
+Status: **v0.8.2, testing on a device.** Ten real instruments, all CC0, so it can be shared freely.
+
+![The PLAY page](docs/images/play_black.png)
+
+![The strings ringing through a strummed chord](docs/images/strum.gif)
 
 At its core it plays real, clean, raw recordings on a six-string playing model; drive, chorus, the pluck layer and
 the synth turn that into many more sounds without a sample library.
 
 Four pages: **PLAY** (the neck, instrument, strum and the main knobs), **LAYER A** (the instrument in detail),
 **LAYER B** (the synth) and **PERFORM** (chord pads and feel). Each page has its own Q-Links.
+
+| LAYER A | LAYER B |
+| --- | --- |
+| ![LAYER A](docs/images/layer_a.png) | ![LAYER B](docs/images/layer_b.png) |
+| **PERFORM** | **PLAY, with the electric** (knobs that do nothing for it are dimmed) |
+| ![PERFORM](docs/images/perform.png) | ![PLAY with the electric](docs/images/play_electric.png) |
+
+Three themes, picked with THEME ◀ ▶: MPC Black, Sunburst and MPC Grey.
+
+| Sunburst | MPC Grey |
+| --- | --- |
+| ![Sunburst](docs/images/play_sunburst.png) | ![MPC Grey](docs/images/play_grey.png) |
 
 ## Layer A: the instrument (INSTRUMENT ◀ ▶ on the PLAY page or LAYER A)
 | Instrument | Recording | Notes |
@@ -115,14 +131,18 @@ Some sounds have no free recordings that can be shared, so they are built from t
 | A1 and up | the instrument (D♭2 with DROP D♭ on) |
 
 ## Build
-From Ubuntu (WSL) with Docker and `python3`, after downloading the three release zips:
+From Ubuntu (WSL on Windows, or any Linux) with Docker, `git` and `python3`:
 
 ```sh
-python3 -m zipfile -e /mnt/c/Users/*/Downloads/fretty-mpc-v0.5.0.zip ~/ && bash ~/fretty-mpc/install.sh
+git clone https://github.com/3dthc/fretty-mpc.git ~/fretty-mpc
+bash ~/fretty-mpc/install.sh
 ```
 
-`install.sh` unpacks the instruments zips, fetches `mpc-vst-plugins` next to this folder if it is missing, runs
-`make_release.sh` and copies the MPC zip to Windows Downloads. In a full checkout, `bash make_release.sh` alone builds.
+`install.sh` checks Docker, fetches [mpc-vst-plugins](https://github.com/sd88me/mpc-vst-plugins) next to this folder if
+it is missing, builds, and leaves `dist/Fretty-<version>-mpc-armv7.zip` (also copied to Windows Downloads under WSL).
+Install that zip on the MPC like any other plugin from mpc-vst-plugins. In a checkout that already has
+`mpc-vst-plugins` beside it, `bash make_release.sh` alone builds. (Without git, the release's split zips work too:
+unzip `fretty-mpc-v<version>.zip` into your home folder with the instrument zips in Downloads, then run `install.sh`.)
 
 The instruments ship ready in `engine/*.smp` (losslessly compressed, ~67 MB in all); the plugin needs that `engine/`
 folder next to `fretty.so` in its plugin folder (`make_release.sh` puts it there).
@@ -147,6 +167,14 @@ level 0-3, `s<n>_fret`: the lit fret). MPC only swaps those pictures when a valu
 ## Offline checks
 - `../mpc-vst-plugins/tools/test_port.sh vst/vst.json` (ASan/UBSan host test, presets included)
 - `tools/render_demo.c`: plays through the engine into a WAV (`render_demo engine out.wav [tour | violin | strum | glide | chords | pitch <instrument>]`).
+
+## Pictures
+`tools/make_shots.py` draws the pictures in `docs/images/` from the layout and artwork, with the engine's own values
+(`tools/shot_state.c`), and the strum GIF from the engine's string pictures through a strummed chord.
+
+## License
+Fretty's code and artwork: MIT (see [LICENSE](LICENSE)). The samples are CC0 (public domain) and the Yellowtail font
+is Apache 2.0; see [CREDITS.md](CREDITS.md).
 
 ## Credits
 Samples: Karoryfer Lecolds and Versilian Studios (VCSL, VSCO 2 CE), all CC0. Font: Yellowtail (Apache 2.0). See [CREDITS.md](CREDITS.md).

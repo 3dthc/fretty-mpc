@@ -838,6 +838,7 @@ static void *eng_create(const char *data_dir) {
     s->rng = 0x9E3779B9u ^ (uint32_t)(uintptr_t)s;
     s->last_state = -1;
     s->bank_held = -1;
+    s->last_strum = -10.0;                 /* no chord yet: the first ALT strum is a down stroke */
     snprintf(s->chord, sizeof s->chord, "-");
     banks_attach(data_dir);
     bank_request(0);

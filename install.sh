@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Fretty: one-step install, from the downloaded zips to a zip ready for the MPC.
 #
-#   python3 -m zipfile -e /mnt/c/Users/*/Downloads/fretty-mpc-v0.8.1.zip ~/ && bash ~/fretty-mpc/install.sh
+#   python3 -m zipfile -e /mnt/c/Users/*/Downloads/fretty-mpc-v0.8.2.zip ~/ && bash ~/fretty-mpc/install.sh
 #
 # What it does:
 #   1. finds the fretty-instruments-*-v<INSTR_VERSION>.zip files in your Windows Downloads (or ~) and adds their instruments
@@ -12,7 +12,7 @@
 # Safe to run again: each step skips what is already done.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-VERSION="0.8.1"
+VERSION="0.8.2"
 INSTR_VERSION="0.6.0"        # the instrument zips (unchanged since then: keep the ones you have)
 INSTRUMENTS="acoustic electric folkharp concertharp strumstick violin dantranh psaltery"
 MPC_VST="${MPC_VST:-$HERE/../mpc-vst-plugins}"

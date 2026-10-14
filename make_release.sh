@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # One command from source to an installable MPC zip:
-#   ./make_release.sh [version]        (default 0.8.1)
+#   ./make_release.sh [version]        (default 0.8.2)
 # Builds the plugin (vst/build.sh, Docker), then packages it with mpc-vst-plugins' release tool into
 # dist/Fretty-<version>-mpc-armv7.zip, with the instruments (engine/*.smp) next to the .so.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 MPC_VST="${MPC_VST:-$HERE/../mpc-vst-plugins}"
-VERSION="${1:-0.8.1}"
+VERSION="${1:-0.8.2}"
 B="$HERE/vst/build"
 
 bash "$HERE/vst/build.sh"
@@ -19,6 +19,7 @@ python3 "$MPC_VST/tools/release.py" \
   --skin "$B/skin/3dthc - VST - Fretty" \
   --entry "$B/pluginlist-entry.xml" \
   --version "$VERSION" \
+  --repo 3dthc/fretty-mpc --license MIT --id fretty \
   --extra "$HERE/engine:engine" \
   --about "Sampled guitars (acoustic archtop, electric), harps, strumstick, violin (bowed and pizzicato), dan tranh and psaltery on a six-string playing model, with a synth layer, drive, chorus, echo and space. All samples CC0." \
   -o "$HERE/dist"
