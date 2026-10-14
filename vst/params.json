@@ -281,6 +281,20 @@
       "max": 16,
       "default": 0,
       "display": "int"
+    },
+    {
+      "key": "theme_prev",
+      "name": "Theme Prev",
+      "momentary": true,
+      "step_of": "theme",
+      "step_delta": -1
+    },
+    {
+      "key": "theme_next",
+      "name": "Theme Next",
+      "momentary": true,
+      "step_of": "theme",
+      "step_delta": 1
     }
   ]
 }

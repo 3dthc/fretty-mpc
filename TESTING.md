@@ -1,4 +1,4 @@
-# Device test (v0.2.0)
+# Device test (v0.2.1)
 
 Goal: confirm Fretty builds, loads on the MPC with its fretboard page, and plays with velocity.
 
@@ -25,7 +25,7 @@ The samples are already packed in `engine/fretty.smp` (~20 MB), so nothing is do
 Expected at the end of the build output:
 - `exported: VSTPluginMain`
 - `highest glibc: GLIBC_2.x` (2.31 or lower is ideal; above 2.36 would not load)
-- `dist/Fretty-0.2.0-mpc-armv7.zip`, about 23 MB
+- `dist/Fretty-0.2.1-mpc-armv7.zip`, about 23 MB
 
 The first build with the new page also downloads the toolchain's artwork renderer image (Playwright, ~1-2 GB, once).
 
@@ -52,7 +52,7 @@ the zip into the MPC plugin installer app. The plugin folder is `3dthc - VST - F
 | 11 | CPU | Play fast chords for a minute | no crackles or dropouts |
 | 12 | Long notes | Hold a low chord 5+ s | rings and fades out naturally, no clicks |
 | 13 | Strings | Play a chord, then single notes | each played string glows with its fret lit, and settles as it fades |
-| 14 | Themes | THEME → Sunburst / MPC Grey | the whole page changes look |
+| 14 | Themes | THEME ◀ ▶ arrows (they wrap around) | the whole page changes look |
 | 15 | Screen load | Play busy chords with the page open | the screen stays responsive |
 
 Also note roughly how long check 2 takes: the first insert decodes the samples (a few seconds on the MPC).

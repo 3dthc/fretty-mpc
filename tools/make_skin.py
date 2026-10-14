@@ -44,7 +44,7 @@ KNOBS = [  # panel, col, row, key, label
     (2, 0, 0, "space", "SPACE"), (2, 0, 1, "volume", "VOLUME"),
 ]
 STRIP = (1032, 236, 240, 384)                    # right column: wordmark + theme (MPC's Q-Link sidebar may cover it)
-THEME_POP = (1152, 560, 200, 48)                 # cx, cy, w, h
+THEME_POP = (1152, 560, 216, 52)                 # theme stepper: cx, cy, w, h (arrows either side)
 NECK = dict(x0=132, x1=1272, yc=106, hn=70, he=84)
 METER_X0 = 36                                    # string pictures span the headstock badges to the right edge
 
@@ -71,7 +71,7 @@ const T = {
   grey:     { bg1:'#d6d3cb', bg2:'#aeaaa0', noise:0.06, panel1:'#2e2d2a', panel2:'#252422', edge:'rgba(0,0,0,0.35)', hi:'rgba(255,255,255,0.10)',
               title:'#e2553e', dim:'#a19d94', accent:'#d03f2a', accentText:'#fff6f1', wood:['#3b2519','#25160e','#543525'], grain:'dark',
               binding:'#efe6cf', inlay:'#efe8da', head:['#2c1b12','#170e09'], btn1:'#e6e3dc', btn2:'#c4c0b7', btnEdge:'rgba(0,0,0,0.22)', btnText:'#2a2926',
-              screw:['#f1efea','#8b877e'], rule:'#d03f2a', chassisText:'#4a4843' },
+              screw:['#f1efea','#8b877e'], rule:'#d03f2a', chassisText:'#a19d94' },
 };
 const TUNING = [40, 45, 50, 55, 59, 64];
 const NOTE = ['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
@@ -210,7 +210,8 @@ function background(name) {
   { const dark = { panel1: '#151515', panel2: '#0c0c0c', edge: 'rgba(255,255,255,0.10)', hi: 'rgba(255,255,255,0.06)' };
     panel(dark, sx + 14, sy + 70, sw - 28, 150, 12); }
   chromeWordmark('Fretty', sx + sw / 2, sy + 168, 74);
-  text('THEME', sx + sw / 2, sy + 292, 12, t.chassisText, { weight: 700, ls: 3, align: 'center' });
+  text('THEME', sx + sw / 2, sy + 278, 12, t.chassisText, { weight: 700, ls: 3, align: 'center' });
+  { const [cx, cy, w, h] = THEME_POP_JSON; arrowPlates(w, h, cx - w / 2, cy - h / 2); }
   return cv.toDataURL('image/png');
 }
 
@@ -299,8 +300,27 @@ function fretStrip(i) {
   }
   return cv.toDataURL('image/png');
 }
+function arrowPlates(w, h, ox, oy) {
+  ctx.save(); ctx.translate(ox, oy);
+  rrect(-8, -8, w + 16, h + 16, 14); ctx.fillStyle = '#101010'; ctx.fill();   // same in every theme: the arrows' corners match
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 1; ctx.stroke();
+  const plate = (x, d) => {
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
+    const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#2e2e2e'); g.addColorStop(1, '#151515');
+    rrect(x + 1, 1, h - 2, h - 2, 9); ctx.fillStyle = g; ctx.fill(); ctx.restore();
+    rrect(x + 1.5, 1.5, h - 3, h - 3, 9); ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1; ctx.stroke();
+    const cx = x + h / 2, cy = h / 2, s = h * 0.2;
+    ctx.beginPath(); ctx.moveTo(cx - d * s * 0.8, cy - s); ctx.lineTo(cx + d * s, cy); ctx.lineTo(cx - d * s * 0.8, cy + s); ctx.closePath();
+    ctx.fillStyle = '#f3ecdc'; ctx.fill();
+  };
+  plate(0, -1); plate(w - h, 1);
+  // the field between the arrows
+  rrect(h + 4, 1, w - 2 * h - 8, h - 2, 9); ctx.fillStyle = '#0d0d0d'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.stroke();
+  ctx.restore();
+}
 const COLW = COLW_JSON, KP_Y = KP_Y_JSON, KP_H = KP_H_JSON, METER_X0 = METER_X0_JSON;
-window.API = { background, toggleImage, knobStrip, vibStrip, fretStrip, meterBox };
+window.API = { arrowPlates, background, toggleImage, knobStrip, vibStrip, fretStrip, meterBox };
 </script></body></html>"""
 
 
@@ -316,7 +336,7 @@ def main():
                 .replace("NECK_JSON", json.dumps(NECK)).replace("PANELS_JSON", json.dumps(PANELS))
                 .replace("STRIP_JSON", json.dumps(STRIP)).replace("COLW_JSON", str(COLW)).replace("KP_Y_JSON", str(KP_Y))
                 .replace("KP_H_JSON", str(KP_H)).replace("METER_X0_JSON", str(METER_X0))
-                .replace("KNOB_LABELS_JSON", json.dumps([list(knob_xy(p_, c, r)) + [lab] for p_, c, r, k, lab in KNOBS])))
+                .replace("THEME_POP_JSON", json.dumps(THEME_POP)).replace("KNOB_LABELS_JSON", json.dumps([list(knob_xy(p_, c, r)) + [lab] for p_, c, r, k, lab in KNOBS])))
     tmp = os.path.join(ART, "_page.html")
     os.makedirs(ART, exist_ok=True)
     open(tmp, "w").write(page_src)
@@ -374,7 +394,7 @@ def write_layout(boxes):
         x, y = knob_xy(p, col, row)
         L.append('knob cx=%d cy=%d r=%d label="%s" key=%s ns=0 vs=21 bw=136 strip=art/knob.png frames=128' % (x, y + Y_OFF, KNOB_R, label, key))
     cx, cy, w, h = THEME_POP
-    L.append('popup cx=%d cy=%d w=%d h=%d label="" key=theme' % (cx, cy + Y_OFF, w, h))
+    L.append('stepper cx=%d cy=%d w=%d h=%d label="" key=theme tsize=20 talign=center' % (cx, cy + Y_OFF, w, h))
     L.append('qlinks "FRETTY" = ' + ",".join(keys))
     open(os.path.join(VST, "layout.conf"), "w").write("\n".join(L) + "\n")
     css = os.path.join(VST, "skin.css")
