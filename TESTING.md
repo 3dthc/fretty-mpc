@@ -20,7 +20,7 @@ message if something is missing; fix that and run `bash ~/fretty-mpc/install.sh`
 Expected at the end of the build output:
 - `exported: VSTPluginMain`
 - `highest glibc: GLIBC_2.x` (2.31 or lower is ideal; above 2.36 would not load)
-- `dist/Fretty-0.4.0-mpc-armv7.zip`, about 64 MB
+- `dist/Fretty-0.4.0-mpc-armv7.zip`, about 60 MB
 
 The first build with the new page also downloads the toolchain's artwork renderer image (Playwright, ~1-2 GB, once).
 
