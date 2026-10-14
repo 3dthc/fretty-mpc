@@ -59,11 +59,14 @@ softened and darkened. `tools/make_presets.py` writes `vst/presets.json`.
 | A1 and up | the instrument (D♭2 with DROP D♭ on) |
 
 ## Build
-Next to a checkout of `mpc-vst-plugins`, from Ubuntu (WSL) with Docker and `python3`:
+From Ubuntu (WSL) with Docker and `python3`, after downloading both release zips:
 
 ```sh
-bash make_release.sh
+python3 -m zipfile -e /mnt/c/Users/*/Downloads/fretty-mpc-v0.3.0.zip ~/ && bash ~/fretty-mpc/install.sh
 ```
+
+`install.sh` unpacks the instruments zip, fetches `mpc-vst-plugins` next to this folder if it is missing, runs
+`make_release.sh` and copies the MPC zip to Windows Downloads. In a full checkout, `bash make_release.sh` alone builds.
 
 The instruments ship ready in `engine/*.smp` (losslessly compressed, ~46 MB in all); the plugin needs that `engine/`
 folder next to `fretty.so` in its plugin folder (`make_release.sh` puts it there).

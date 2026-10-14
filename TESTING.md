@@ -5,25 +5,18 @@ Goal: confirm Fretty v0.3.0 builds, loads with both pages, plays every instrumen
 **If you installed the earlier test build (Archtop):** remove it first (`uninstall.sh` from its zip, or the installer
 app), since Fretty is a new plugin with its own folder.
 
-## 1. Build (Ubuntu in WSL)
-Put this folder in your Ubuntu home next to `mpc-vst-plugins`:
-
-```
-~/mpc-vst-plugins/
-~/fretty-mpc/        <- this folder
-```
-
-Then:
+## 1. Install (Ubuntu in WSL)
+Download both zips to your Windows **Downloads** folder: `fretty-mpc-v0.3.0.zip` and `fretty-instruments-v0.3.0.zip`
+(the second holds the electric, harps and strumstick; they are split only because of a download size limit).
+Start Docker Desktop, then paste this one line into Ubuntu:
 
 ```sh
-cd ~/fretty-mpc
-chmod +x make_release.sh vst/build.sh
-./make_release.sh
+rm -rf ~/fretty-mpc && python3 -m zipfile -e /mnt/c/Users/*/Downloads/fretty-mpc-v0.3.0.zip ~/ && bash ~/fretty-mpc/install.sh
 ```
 
-This version comes as **two zips**: `fretty-mpc-v0.3.0.zip` (the project and the acoustic) and
-`fretty-instruments-v0.3.0.zip` (electric, harps, strumstick). Unzip both into your home folder; the second adds its
-files to `fretty-mpc/engine/`. The build stops with a clear message if any instrument file is missing.
+`install.sh` adds the instruments from the second zip, checks Docker and the toolchain (`~/mpc-vst-plugins`, cloned if
+missing), builds, and copies `Fretty-0.3.0-mpc-armv7.zip` into your Windows Downloads. It stops with a plain message
+if something is missing; fix that and run `bash ~/fretty-mpc/install.sh` again.
 Expected at the end of the build output:
 - `exported: VSTPluginMain`
 - `highest glibc: GLIBC_2.x` (2.31 or lower is ideal; above 2.36 would not load)
