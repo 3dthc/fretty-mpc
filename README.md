@@ -168,6 +168,12 @@ level 0-3, `s<n>_fret`: the lit fret). MPC only swaps those pictures when a valu
 - `../mpc-vst-plugins/tools/test_port.sh vst/vst.json` (ASan/UBSan host test, presets included)
 - `tools/render_demo.c`: plays through the engine into a WAV (`render_demo engine out.wav [tour | violin | strum | glide | chords | pitch <instrument>]`).
 
+## Releases
+GitHub Actions builds the MPC zip: **Actions > Release > Run workflow**, enter the version. It builds, runs the host
+test and attaches `Fretty-<version>-mpc-armv7.zip` to a **draft** release. Install that exact zip on an MPC, run
+TESTING.md, then publish the draft (publishing creates the tag `v<version>`). `docs/catalog/fretty.json` is the
+entry for the [mpc-vst-plugins catalog](https://github.com/sd88me/mpc-vst-plugins/tree/main/catalog).
+
 ## Pictures
 `tools/make_shots.py` draws the pictures in `docs/images/` from the layout and artwork, with the engine's own values
 (`tools/shot_state.c`), and the strum GIF from the engine's string pictures through a strummed chord.
