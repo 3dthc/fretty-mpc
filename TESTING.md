@@ -19,7 +19,9 @@ chmod +x make_release.sh vst/build.sh
 ./make_release.sh
 ```
 
-The samples are already packed (`vst/build/engine/archtop.smp`), so nothing is downloaded and numpy isn't needed.
+The first build downloads Shinyguitar (~800 MB, pinned commit) into `third_party/` and packs it into
+`vst/build/engine/archtop.smp` (~250 MB, a minute or two). It needs `git`, `python3` and numpy:
+`sudo apt install python3-numpy`. Later builds reuse the packed file.
 Expected at the end of the build output:
 - `exported: VSTPluginMain`
 - `highest glibc: GLIBC_2.x` (2.31 or lower is ideal; above 2.36 would not load)
