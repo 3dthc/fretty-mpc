@@ -27,7 +27,7 @@ VST = os.path.join(HERE, "..", "vst")
 ART = os.path.join(VST, "art")
 Y_OFF = 86
 
-THEMES = ["black", "sunburst", "grey"]          # index = the "theme" parameter's option
+THEMES = ["black", "sunburst", "grey", "teal", "violet"]          # index = the "theme" parameter's option
 INSTRUMENTS = ["Acoustic", "Electric", "Folk Harp", "Concert Harp", "Strumstick", "Violin", "Violin Pizz",
                "Dan Tranh", "Psaltery", "Bowed Psaltery"]
 ROW_Y, ROW_H = 236, 52                           # the PLAY page's row under the neck
@@ -124,6 +124,14 @@ const T = {
               title:'#e2553e', dim:'#a19d94', accent:'#d03f2a', accentText:'#fff6f1', wood:['#3b2519','#25160e','#543525'], grain:'dark',
               binding:'#efe6cf', inlay:'#efe8da', head:['#2c1b12','#170e09'], btn1:'#e6e3dc', btn2:'#c4c0b7', btnEdge:'rgba(0,0,0,0.22)', btnText:'#2a2926',
               screw:['#f1efea','#8b877e'], rule:'#d03f2a', chassisText:'#a19d94' },
+  teal:     { bg1:'#0d2429', bg2:'#040b0e', noise:0.035, panel1:'#15343a', panel2:'#0a1d21', edge:'rgba(190,225,230,0.28)', hi:'rgba(220,250,255,0.07)',
+              title:'#76cbd4', dim:'#799da2', accent:'#2397a8', accentText:'#07191d', wood:['#4a3022','#2b1b14','#60412e'], grain:'dark',
+              binding:'#b8cbd0', inlay:'#dce8e9', head:['#19353a','#091a1e'], btn1:'#29464c', btn2:'#142d32', btnEdge:'rgba(190,235,240,0.30)', btnText:'#e7f4f5',
+              screw:['#dce7e9','#596a6d'], rule:'#2397a8', chassisText:'#9ab8bc' },
+  violet:   { bg1:'#1b1528', bg2:'#08060d', noise:0.035, panel1:'#292037', panel2:'#171120', edge:'rgba(210,195,235,0.28)', hi:'rgba(245,235,255,0.07)',
+              title:'#b7a0df', dim:'#9588a8', accent:'#8862c3', accentText:'#160e24', wood:['#4a3022','#2b1b14','#60412e'], grain:'dark',
+              binding:'#c8bfce', inlay:'#e9e0f0', head:['#30243f','#140e1d'], btn1:'#413451', btn2:'#241b31', btnEdge:'rgba(220,205,245,0.30)', btnText:'#f0eaf7',
+              screw:['#e8e0ee','#6c6176'], rule:'#8862c3', chassisText:'#b8a9ca' },
 };
 const TUNING = [40, 45, 50, 55, 59, 64];
 const NOTE = ['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
@@ -146,11 +154,37 @@ function text(s, x, y, size, color, o = {}) {
   ctx.fillText(s, x, y); ctx.letterSpacing = '0px';
 }
 function panel(t, x, y, w, h, r = 14) {
-  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 6;
-  const g = ctx.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, t.panel1); g.addColorStop(1, t.panel2);
-  rrect(x, y, w, h, r); ctx.fillStyle = g; ctx.fill(); ctx.restore();
-  rrect(x + 0.5, y + 0.5, w - 1, h - 1, r); ctx.strokeStyle = t.edge; ctx.lineWidth = 1; ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(x + r, y + 1.5); ctx.lineTo(x + w - r, y + 1.5); ctx.strokeStyle = t.hi; ctx.stroke();
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur = 18;
+  ctx.shadowOffsetY = 6;
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, t.panel1);
+  g.addColorStop(1, t.panel2);
+  rrect(x, y, w, h, r);
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.restore();
+
+  rrect(x + 0.5, y + 0.5, w - 1, h - 1, r);
+  const black = t === T.black;
+  const sunburst = t === T.sunburst;
+  ctx.strokeStyle = black
+    ? 'rgba(220,228,235,0.72)'
+    : sunburst ? 'rgba(239,243,247,0.72)'
+    : t === T.grey ? 'rgba(0,0,0,0.92)' : t.edge;
+  ctx.lineWidth = black ? 2 : sunburst ? 1.7 : t === T.grey ? 2 : 1;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(x + r, y + 1.5);
+  ctx.lineTo(x + w - r, y + 1.5);
+  ctx.strokeStyle = black
+    ? 'rgba(245,248,250,0.32)'
+    : sunburst ? 'rgba(250,252,255,0.38)'
+    : t === T.grey ? 'rgba(0,0,0,0.12)' : t.hi;
+  ctx.lineWidth = black ? 1.5 : sunburst ? 1.4 : 1;
+  ctx.stroke();
 }
 function screw(t, x, y) {
   const g = ctx.createRadialGradient(x - 1.5, y - 1.5, 0.5, x, y, 6); g.addColorStop(0, t.screw[0]); g.addColorStop(1, t.screw[1]);
@@ -193,28 +227,52 @@ function badge(x, y, label, lit, accent, accentText) {
   ctx.strokeStyle = lit ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1; ctx.stroke();
   text(label, x, y + 1, 14, lit ? accentText : '#efe6d6', { align: 'center', base: 'middle', weight: 800, maxw: 18 });
 }
-function chromeWordmark(word, cx, cy, size) {
+function fretboardStringBadge(x, y, label) {
+  y = 115 + (y - 106) * 1.5625;
+  ctx.beginPath(); ctx.arc(x, y, 14.5, 0, 6.283);
+  ctx.save();
+  ctx.shadowColor = 'rgba(255,255,255,0.22)'; ctx.shadowBlur = 5;
+  ctx.fillStyle = 'rgba(8,10,12,0.82)'; ctx.fill(); ctx.restore();
+  ctx.strokeStyle = 'rgba(235,240,245,0.48)'; ctx.lineWidth = 1.2; ctx.stroke();
+  text(label, x, y + 1, 21, '#ffffff', { align: 'center', base: 'middle', weight: 800, maxw: 26 });
+}
+function chromeWordmark(word, cx, cy, size, gold = false) {
   // drawn on its own layer so the shine stays inside the letters
   const L = document.createElement('canvas'); L.width = cv.width; L.height = cv.height; const g2 = L.getContext('2d');
   const main = ctx; ctx = g2;
   ctx.font = `${size}px Script`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   const m = ctx.measureText(word), top = cy - m.actualBoundingBoxAscent, bot = cy + m.actualBoundingBoxDescent;
   const g = ctx.createLinearGradient(0, top, 0, bot);
-  g.addColorStop(0.00, '#ffffff'); g.addColorStop(0.30, '#e3e6ea'); g.addColorStop(0.48, '#9aa0a8');
-  g.addColorStop(0.52, '#3e434a'); g.addColorStop(0.60, '#7a8089'); g.addColorStop(0.82, '#d9dde2'); g.addColorStop(1.00, '#ffffff');
+  if (gold) {
+    g.addColorStop(0.00, '#fff4c2'); g.addColorStop(0.22, '#d9b65c');
+    g.addColorStop(0.42, '#987027'); g.addColorStop(0.52, '#604315');
+    g.addColorStop(0.66, '#c49a3c'); g.addColorStop(0.84, '#f4df91');
+    g.addColorStop(1.00, '#fff0b5');
+  } else {
+    g.addColorStop(0.00, '#ffffff'); g.addColorStop(0.30, '#e3e6ea'); g.addColorStop(0.48, '#9aa0a8');
+    g.addColorStop(0.52, '#3e434a'); g.addColorStop(0.60, '#7a8089'); g.addColorStop(0.82, '#d9dde2'); g.addColorStop(1.00, '#ffffff');
+  }
   ctx.fillStyle = g; ctx.fillText(word, cx, cy);
   ctx.globalCompositeOperation = 'source-atop';
   const s = ctx.createLinearGradient(cx - 110, top, cx + 30, bot);
   s.addColorStop(0.0, 'rgba(255,255,255,0)'); s.addColorStop(0.45, 'rgba(255,255,255,0.7)'); s.addColorStop(0.55, 'rgba(255,255,255,0)');
   ctx.fillStyle = s; ctx.fillRect(cx - 200, top - 10, 400, bot - top + 20);
   ctx.globalCompositeOperation = 'source-over';
-  ctx.lineWidth = 0.9; ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.strokeText(word, cx, cy - 0.8);
+  ctx.lineWidth = 0.9;
+  ctx.strokeStyle = gold ? 'rgba(255,239,180,0.72)' : 'rgba(255,255,255,0.6)';
+  ctx.strokeText(word, cx, cy - 0.8);
   ctx = main;
   // dark outline + shadow under the chrome layer
   ctx.font = `${size}px Script`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.75)'; ctx.shadowBlur = 9; ctx.shadowOffsetY = 4;
-  ctx.lineJoin = 'round'; ctx.lineWidth = 6; ctx.strokeStyle = '#121316'; ctx.strokeText(word, cx, cy); ctx.restore();
-  ctx.lineWidth = 2.4; ctx.strokeStyle = '#80868e'; ctx.lineJoin = 'round'; ctx.strokeText(word, cx, cy);
+  ctx.save();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  ctx.lineJoin = 'round'; ctx.lineWidth = gold ? 3.2 : 4;
+  ctx.strokeStyle = gold ? '#76551d' : '#121316';
+  ctx.strokeText(word, cx, cy);
+  ctx.restore();
+  ctx.lineWidth = gold ? 1.4 : 2;
+  ctx.strokeStyle = gold ? '#c6a24b' : '#80868e';
+  ctx.lineJoin = 'round'; ctx.strokeText(word, cx, cy);
   ctx.drawImage(L, 0, 0);
 }
 
@@ -234,8 +292,17 @@ function background(name) {
   ctx.save(); neckPath(); ctx.clip(); ctx.drawImage(wood(t), x0, yc - 130);
   const rs = ctx.createLinearGradient(0, yc - he, 0, yc + he); rs.addColorStop(0, 'rgba(0,0,0,0.30)'); rs.addColorStop(0.18, 'rgba(0,0,0,0)'); rs.addColorStop(0.82, 'rgba(0,0,0,0)'); rs.addColorStop(1, 'rgba(0,0,0,0.35)');
   ctx.fillStyle = rs; ctx.fillRect(x0, yc - 130, x1 - x0 + 40, 260);
-  const inlay = (n, dy) => { const x = (fretX(n - 1) + fretX(n)) / 2, y = yc + dy, gg = ctx.createRadialGradient(x - 2, y - 2, 1, x, y, 9);
-    gg.addColorStop(0, t.inlay); gg.addColorStop(1, t.grain === 'light' ? '#000' : '#cfc3a8'); ctx.beginPath(); ctx.arc(x, y, 8, 0, 6.283); ctx.fillStyle = gg; ctx.fill(); };
+  const inlay = (n, dy) => {
+    const x = (fretX(n - 1) + fretX(n)) / 2, y = yc + dy;
+    if (name === 'black') {
+      ctx.save(); ctx.shadowColor = 'rgba(255,255,255,0.42)'; ctx.shadowBlur = 7;
+      ctx.beginPath(); ctx.arc(x, y, 8, 0, 6.283); ctx.fillStyle = '#f1e5c8'; ctx.fill(); ctx.restore();
+    }
+    const gg = ctx.createRadialGradient(x - 2, y - 2, 1, x, y, 9);
+    gg.addColorStop(0, t.inlay);
+    gg.addColorStop(1, t.grain === 'light' ? '#000' : '#cfc3a8');
+    ctx.beginPath(); ctx.arc(x, y, 8, 0, 6.283); ctx.fillStyle = gg; ctx.fill();
+  };
   [3, 5, 7, 9, 15].forEach(n => inlay(n, 0)); { const sp = (halfH(fretX(12)) - 14) * 2 / 5; inlay(12, -sp * 1.5); inlay(12, sp * 1.5); }
   for (let n = 1; n <= 16; n++) {
     const x = fretX(n), h = halfH(x), fg = ctx.createLinearGradient(x - 2.5, 0, x + 2.5, 0);
@@ -251,9 +318,9 @@ function background(name) {
   for (let i = 0; i < 6; i++) drawString(i, x0, '#ecebe6', 1);
   [1, 3, 5, 7, 9, 12, 15].forEach(n => text(String(n), (fretX(n - 1) + fretX(n)) / 2, P.y + P.h - 6, 15, t.dim, { align: 'center', weight: 700 }));
   ctx.restore();
-  for (let i = 0; i < 6; i++) badge(58, stringY(i, x0), NOTE[TUNING[i] % 12], false);
+  for (let i = 0; i < 6; i++) fretboardStringBadge(58, stringY(i, x0), NOTE[TUNING[i] % 12]);
   screw(t, P.x + 14, P.y + 14); screw(t, P.x + 14, P.y + P.h - 14);
-  // knob panels (dark in every theme, so MPC's live text reads the same)
+  // Knob panels remain dark in every theme.
   for (const [title, sub, x, cols] of PANELS_JSON) {
     const w = cols * COLW; panel(t, x, KP_Y, w, KP_H);
     text(title, x + 20, KP_Y + 22, 14, t.title, { weight: 800, ls: 2.6, maxw: w - 40 });
@@ -261,21 +328,41 @@ function background(name) {
   }
   for (const [x, y, label] of KNOB_LABELS_JSON) text(label, x, y - 54, 16, '#efe9d8', { align: 'center', weight: 800, ls: 1.4, maxw: 118 });
   // the row under the neck: the instrument and strum steppers (their arrows are cropped from this picture)
-  for (const [key, cx, cy, w, h] of ROW_STEP_DATA) arrowPlates(w, h, cx - w / 2, cy - h / 2);
+  for (const [key, cx, cy, w, h] of ROW_STEP_DATA) arrowPlates(t, w, h, cx - w / 2, cy - h / 2);
   // right column: the wordmark fills it, the theme stepper sits at its foot
   const [sx, sy, sw, sh] = STRIP_JSON; panel(t, sx, sy, sw, sh);
   const [, , , scy, , sth] = STEPPERS_JSON[0];
   const capY = scy - sth / 2 - 18;                       // the THEME caption, just over the stepper
-  wordPlate(sx + 14, sy + 14, sw - 28, capY - 20 - (sy + 14), 92);
+  wordPlate(sx + 14, sy + 14, sw - 28, capY - 20 - (sy + 14), 92, t);
   for (const [key, label, cx, cy, w, h] of STEPPERS_JSON) {
     text(label, cx, capY, 14, t.chassisText, { weight: 800, ls: 2.8, align: 'center' });
-    arrowPlates(w, h, cx - w / 2, cy - h / 2);
+    arrowPlates(t, w, h, cx - w / 2, cy - h / 2);
   }
   return cv.toDataURL('image/png');
 }
-function wordPlate(x, y, w, h, size) {
-  const dark = { panel1: '#151515', panel2: '#0c0c0c', edge: 'rgba(255,255,255,0.10)', hi: 'rgba(255,255,255,0.06)' };
-  panel(dark, x, y, w, h, 12);
+function wordPlate(x, y, w, h, size, t) {
+  const themed = t === T.teal || t === T.violet;
+  if (themed) {
+    rrect(x, y, w, h, 12);
+    const dark = ctx.createLinearGradient(0, y, 0, y + h);
+    dark.addColorStop(0, '#242321');
+    dark.addColorStop(1, '#111110');
+    ctx.fillStyle = dark;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  } else {
+    rrect(x, y, w, h, 12);
+    const dark = ctx.createLinearGradient(0, y, 0, y + h);
+    dark.addColorStop(0, '#242321');
+    dark.addColorStop(1, '#111110');
+    ctx.fillStyle = dark;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
   // as big as the plate allows (a margin all round), centred on the letters' own height
   ctx.font = `${size}px Script`;
   let m = ctx.measureText('Fretty');
@@ -283,7 +370,7 @@ function wordPlate(x, y, w, h, size) {
     size -= 1; ctx.font = `${size}px Script`; m = ctx.measureText('Fretty');
   }
   const cy = y + h / 2 + (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2;
-  chromeWordmark('Fretty', x + w / 2, cy, size);
+  chromeWordmark('Fretty', x + w / 2, cy, size, themed);
 }
 
 // ---------- the LAYER A / LAYER B page backgrounds (one per theme) ----------
@@ -296,7 +383,7 @@ function layerBackground(name, which) {
   // the picture's bezel (waveform or instrument) and the stepper under it
   { const [x, y, w, h] = WAVE_BOX_JSON; rrect(x - 6, y - 6, w + 12, h + 12, 12); ctx.fillStyle = '#0a0a0a'; ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1; ctx.stroke(); }
-  { const [cx, cy, w, h] = PIC_STEP_JSON; arrowPlates(w, h, cx - w / 2, cy - h / 2); }
+  { const [cx, cy, w, h] = PIC_STEP_JSON; arrowPlates(t, w, h, cx - w / 2, cy - h / 2); }
   if (which === 'A') { stringIcon(40, 352, 500, 92, t.title); swellIcon(612, 352, 372, 92, t.title); }
   else { adsrIcon(40, 352, 500, 92, t.title); filterIcon(612, 352, 372, 92, t.title); }
   // right column: wordmark, the layer switches, the mix
@@ -317,7 +404,7 @@ function performBackground(name) {
   for (const [title, x, y, w, h] of PERF_PANELS) { panel(t, x, y, w, h); text(title, x + 20, y + 25, 15, t.title, { weight: 800, ls: 2.6 }); }
   for (const [key, cap, cx, cy, w, h] of PERF_STEPPERS) {
     text(cap, cx, cy - h / 2 - 14, 14, t.chassisText, { weight: 800, ls: 2.8, align: 'center' });
-    arrowPlates(w, h, cx - w / 2, cy - h / 2);
+    arrowPlates(t, w, h, cx - w / 2, cy - h / 2);
   }
   text('EVERY PAD PLAYS THE CHORD OF ITS NOTE IN THIS KEY', 298, 276, 11.5, t.chassisText, { weight: 700, ls: 1.2, align: 'center', maxw: 540 });
   for (const [key, label, cx, cy] of PERF_KNOBS) text(label, cx, cy - 54, 16, '#efe9d8', { align: 'center', weight: 800, ls: 1.4, maxw: 118 });
@@ -528,23 +615,127 @@ function fretStrip(i) {
   }
   return cv.toDataURL('image/png');
 }
-function arrowPlates(w, h, ox, oy) {
-  ctx.save(); ctx.translate(ox, oy);
-  rrect(-8, -8, w + 16, h + 16, 14); ctx.fillStyle = '#101010'; ctx.fill();   // same in every theme: the arrows' corners match
-  ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 1; ctx.stroke();
+function arrowPlates(t, w, h, ox, oy) {
+  ctx.save();
+  ctx.translate(ox, oy);
+
+  const teal = t === T.teal;
+  const violet = t === T.violet;
+  const themed = teal || violet;
+  const sunburst = t === T.sunburst;
+
+  // Brown surround around a transparent selector track on teal/violet.
+  const outer = themed ? '#65492f'
+    : t === T.grey ? '#c4c1b9' : '#101010';
+
+  const accent = teal ? '#39c8d5'
+    : violet ? '#b497ec'
+    : t === T.sunburst ? '#e4e8ed' : '#e8edf0';
+
+  const outline = t === T.black ? 'rgba(220,228,235,0.78)'
+    : sunburst ? 'rgba(245,248,252,0.82)'
+    : t === T.grey ? '#4a4945' : themed ? accent : 'rgba(0,0,0,0.30)';
+
+  rrect(-8, -8, w + 16, h + 16, 14);
+  if (t === T.grey) {
+    ctx.fillStyle = outer;
+  } else {
+    const surround = ctx.createLinearGradient(0, -8, 0, h + 8);
+    surround.addColorStop(0, outer);
+    surround.addColorStop(1, themed ? '#302116' : outer);
+    ctx.fillStyle = surround;
+  }
+  ctx.fill();
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = t === T.black ? 1.8 : sunburst ? 1.7 : themed ? 1.4 : t === T.grey ? 2 : 1;
+  ctx.stroke();
+
   const plate = (x, d) => {
-    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
-    const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#2e2e2e'); g.addColorStop(1, '#151515');
-    rrect(x + 1, 1, h - 2, h - 2, 9); ctx.fillStyle = g; ctx.fill(); ctx.restore();
-    rrect(x + 1.5, 1.5, h - 3, h - 3, 9); ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1; ctx.stroke();
-    const cx = x + h / 2, cy = h / 2, s = h * 0.2;
-    ctx.beginPath(); ctx.moveTo(cx - d * s * 0.8, cy - s); ctx.lineTo(cx + d * s, cy); ctx.lineTo(cx - d * s * 0.8, cy + s); ctx.closePath();
-    ctx.fillStyle = '#f3ecdc'; ctx.fill();
+    ctx.save();
+    if (t !== T.grey) {
+      ctx.shadowColor = 'rgba(0,0,0,0.38)';
+      ctx.shadowBlur = 6;
+      ctx.shadowOffsetY = 2;
+    }
+
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    if (t === T.grey) {
+      g.addColorStop(0, '#cbc8c0');
+      g.addColorStop(1, '#cbc8c0');
+    } else if (teal) {
+      g.addColorStop(0, '#28515a');
+      g.addColorStop(1, '#10292e');
+    } else if (violet) {
+      g.addColorStop(0, '#443653');
+      g.addColorStop(1, '#21192d');
+    } else if (sunburst) {
+      g.addColorStop(0, '#484039');
+      g.addColorStop(1, '#211912');
+    } else {
+      g.addColorStop(0, '#353638');
+      g.addColorStop(1, '#151618');
+    }
+
+    rrect(x + 1, 1, h - 2, h - 2, 9);
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.restore();
+
+    rrect(x + 1.5, 1.5, h - 3, h - 3, 9);
+    ctx.strokeStyle = t === T.grey ? '#4a4945'
+      : t === T.black ? 'rgba(220,228,235,0.75)'
+      : sunburst ? 'rgba(239,243,247,0.68)'
+      : themed ? 'rgba(210,220,225,0.58)'
+      : 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = t === T.grey ? 2 : t === T.black ? 1.5 : sunburst ? 1.4 : 1;
+    ctx.stroke();
+
+    const cx = x + h / 2, cy = h / 2, sz = h * 0.2;
+    ctx.beginPath();
+    ctx.moveTo(cx - d * sz * 0.8, cy - sz);
+    ctx.lineTo(cx + d * sz, cy);
+    ctx.lineTo(cx - d * sz * 0.8, cy + sz);
+    ctx.closePath();
+    ctx.fillStyle = t === T.grey ? '#eef1f4' : accent;
+    ctx.fill();
+    if (t === T.grey) {
+      ctx.strokeStyle = '#555b61';
+      ctx.lineWidth = 1.1;
+      ctx.stroke();
+    }
   };
-  plate(0, -1); plate(w - h, 1);
-  // the field between the arrows
-  rrect(h + 4, 1, w - 2 * h - 8, h - 2, 9); ctx.fillStyle = '#0d0d0d'; ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.stroke();
+
+  plate(0, -1);
+  plate(w - h, 1);
+
+  // Teal/violet track stays transparent; retain existing fills for other themes.
+  rrect(h + 4, 1, w - 2 * h - 8, h - 2, 9);
+  if (themed) {
+    const track = ctx.createLinearGradient(0, 1, 0, h - 1);
+    if (teal) {
+      track.addColorStop(0, 'rgba(20,65,71,0.72)');
+      track.addColorStop(1, 'rgba(10,34,39,0.72)');
+    } else {
+      track.addColorStop(0, 'rgba(57,43,76,0.72)');
+      track.addColorStop(1, 'rgba(29,21,42,0.72)');
+    }
+    ctx.fillStyle = track;
+    ctx.fill();
+  } else {
+    const track = ctx.createLinearGradient(0, 1, 0, h - 1);
+    track.addColorStop(0, sunburst ? '#393027' : '#0d0d0d');
+    track.addColorStop(1, sunburst ? '#211912' : '#0d0d0d');
+    ctx.fillStyle = track;
+    ctx.fill();
+  }
+
+  ctx.strokeStyle = themed ? 'rgba(210,220,225,0.42)'
+    : sunburst ? 'rgba(245,248,252,0.72)'
+    : t === T.black ? 'rgba(220,228,235,0.42)'
+    : 'rgba(255,255,255,0.10)';
+  ctx.lineWidth = themed || sunburst ? 1.2 : 1;
+  ctx.stroke();
+
   ctx.restore();
 }
 const COLW = COLW_JSON, KP_Y = KP_Y_JSON, KP_H = KP_H_JSON, METER_X0 = METER_X0_JSON;
