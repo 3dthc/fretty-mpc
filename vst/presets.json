@@ -1,7 +1,7 @@
 {
  "presets": [
   {
-   "name": "80S | Bass VI Melody",
+   "name": "80s | Bass VI Melody",
    "values": {
     "instrument": "Electric",
     "blend": 0.35,
@@ -47,7 +47,7 @@
    }
   },
   {
-   "name": "80S | Chorus Wash",
+   "name": "80s | Chorus Wash",
    "values": {
     "instrument": "Electric",
     "blend": 0.35,
@@ -93,7 +93,7 @@
    }
   },
   {
-   "name": "80S | Cold Room Clean",
+   "name": "80s | Cold Room Clean",
    "values": {
     "instrument": "Electric",
     "blend": 0.35,
@@ -139,7 +139,7 @@
    }
   },
   {
-   "name": "80S | Cold Wave Layers",
+   "name": "80s | Cold Wave Layers",
    "values": {
     "instrument": "Electric",
     "blend": 0.35,
@@ -185,7 +185,7 @@
    }
   },
   {
-   "name": "80S | Dreamy Bloom",
+   "name": "80s | Dreamy Bloom",
    "values": {
     "instrument": "Electric",
     "blend": 0.35,
@@ -231,7 +231,7 @@
    }
   },
   {
-   "name": "80S | Dry Post-Punk",
+   "name": "80s | Dry Post-Punk",
    "values": {
     "instrument": "Electric",
     "blend": 0.35,
@@ -277,7 +277,7 @@
    }
   },
   {
-   "name": "80S | Gated Chime",
+   "name": "80s | Gated Chime",
    "values": {
     "instrument": "Electric",
     "blend": 0.35,
@@ -323,7 +323,7 @@
    }
   },
   {
-   "name": "80S | Glass Delay",
+   "name": "80s | Glass Delay",
    "values": {
     "instrument": "Electric",
     "blend": 0.35,
@@ -369,7 +369,7 @@
    }
   },
   {
-   "name": "80S | Jangle Drive",
+   "name": "80s | Jangle Drive",
    "values": {
     "instrument": "Electric",
     "blend": 0.35,
@@ -415,7 +415,7 @@
    }
   },
   {
-   "name": "80S | Midnight Bass",
+   "name": "80s | Midnight Bass",
    "values": {
     "instrument": "Electric",
     "blend": 0.35,
@@ -461,7 +461,7 @@
    }
   },
   {
-   "name": "80S | Post-Punk Grit",
+   "name": "80s | Post-Punk Grit",
    "values": {
     "instrument": "Electric",
     "blend": 0.35,
