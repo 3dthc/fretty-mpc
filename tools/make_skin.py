@@ -37,14 +37,14 @@ TOGGLES = [   # key, x, y, w, h, label
     ("drop", 910, ROW_Y, 104, ROW_H, "DROP D\u266d"),
 ]
 ROW_STEPPERS = [  # key, cx, cy, w, h, text size
-    ("instrument", 152, ROW_Y + ROW_H // 2, 272, ROW_H, 19),
-    ("strum_mode", 785, ROW_Y + ROW_H // 2, 230, ROW_H, 17),
+    ("instrument", 152, ROW_Y + ROW_H // 2, 272, ROW_H, 21),
+    ("strum_mode", 785, ROW_Y + ROW_H // 2, 230, ROW_H, 19),
 ]
 COLW = 141
 PANELS = [("GUITAR", "", 8, 3), ("FX", "", 8 + 3 * COLW + 8, 3), ("LAYERS", "", 8 + 6 * COLW + 16, 1)]
 KP_Y, KP_H = 300, 324
 KNOB_R = 44                                      # the builder's knob box is 2r + 10
-VALUE_PX = 23                                    # MPC's live value text under each knob (Titillium)
+VALUE_PX = 26                                    # MPC's live value text under each knob (Titillium)
 KNOB_ROWS = (401, 546)                           # names sit 54 px above a knob's centre, its value box ends 75 px below
 KNOBS = [  # panel, col, row, key, label
     (0, 0, 0, "blend", "BLEND"), (0, 1, 0, "tone", "TONE"), (0, 2, 0, "damp", "DAMP"),
@@ -57,7 +57,7 @@ KNOBS = [  # panel, col, row, key, label
 DIM = {"blend": list(range(1, 10)),              # only the archtop has a pickup and a mic to blend
        "noise": list(range(2, 10))}              # release / fret noises: the archtop and the electric
 STRIP = (1032, 236, 240, 384)                    # right column: wordmark + theme (MPC's Q-Link sidebar may cover it)
-STEPPERS = [("theme", "THEME", 1152, 580, 224, 52, 19)]   # key, label, cx, cy, w, h, text size: the column's foot
+STEPPERS = [("theme", "THEME", 1152, 580, 224, 52, 21)]   # key, label, cx, cy, w, h, text size: the column's foot
 NECK = dict(x0=132, x1=1272, yc=106, hn=70, he=84)
 METER_X0 = 36                                    # string pictures span the headstock badges to the right edge
 LOAD_BOX = (552, 76, 300, 60)                    # x, y, w, h: "loading" over the neck while an instrument loads
@@ -86,8 +86,8 @@ S_TOGGLES = [("a_on", 1048, 180, 208, 56, "A \u00b7 GUITAR"), ("b_on", 1048, 252
 # ---- the PERFORM page
 P_PANELS = [("CHORD PADS", 8, 8, 580, 284), ("FEEL", 596, 8, 420, 284), ("CHORDS IN KEY", 8, 300, 1008, 324)]
 P_STEPPERS = [  # key, caption, cx, cy, w, h, text size
-    ("chord_mode", "CHORDS", 158, 100, 260, 52, 19), ("chord_key", "KEY", 438, 100, 260, 52, 19),
-    ("chord_scale", "SCALE", 158, 210, 260, 52, 19), ("chord_voicing", "VOICING", 438, 210, 260, 52, 19)]
+    ("chord_mode", "CHORDS", 158, 100, 260, 52, 21), ("chord_key", "KEY", 438, 100, 260, 52, 21),
+    ("chord_scale", "SCALE", 158, 210, 260, 52, 21), ("chord_voicing", "VOICING", 438, 210, 260, 52, 21)]
 P_KNOBS = [("hum_time", "TIMING", 666, 150, 124), ("hum_vel", "VELOCITY", 806, 150, 124)]
 P_TOGGLE = ("echo_sync", 891, 124, 110, 52, "SYNC")       # key, x, y, w, h, label (the column at x 946)
 TILE = dict(x0=27, y=352, w=130, h=214, gap=10)         # the seven chord tiles
@@ -685,11 +685,11 @@ def write_layout(boxes):
         if which == "A":
             files = ",".join("art/inst_%d.png" % k for k in range(len(INSTRUMENTS)))
             L.append('picture x=%d y=%d w=%d h=%d key=instrument files="%s"' % (x, y + Y_OFF, w, h, files))
-            stepper("instrument", PIC_STEP[0], PIC_STEP[1], PIC_STEP[2], PIC_STEP[3], 19)
+            stepper("instrument", PIC_STEP[0], PIC_STEP[1], PIC_STEP[2], PIC_STEP[3], 21)
         else:
             L.append('picture x=%d y=%d w=%d h=%d key=wave files="art/wave_sine.png,art/wave_triangle.png,art/wave_saw.png,art/wave_square.png"' % (
                 x, y + Y_OFF, w, h))
-            stepper("wave", PIC_STEP[0], PIC_STEP[1], PIC_STEP[2], PIC_STEP[3], 19)
+            stepper("wave", PIC_STEP[0], PIC_STEP[1], PIC_STEP[2], PIC_STEP[3], 21)
         toggles(S_TOGGLES)
         for key, label, cx, cy, bw in L_KNOBS[which]:
             dimmable(cx, cy, key, label, bw)
