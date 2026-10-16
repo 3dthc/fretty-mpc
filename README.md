@@ -2,7 +2,7 @@
 
 A guitar instrument for Akai MPC OS standalone devices (native VST2, built with
 [mpc-vst-plugins](https://github.com/sd88me/mpc-vst-plugins)), with a synth layer as a twist.
-Status: **v0.8.2, testing on a device.** Ten real instruments, all CC0, so it can be shared freely.
+Status: **v0.8.3, tested on an MPC.** Ten real instruments, all CC0, so it can be shared freely.
 
 ![The PLAY page](docs/images/play_black.png)
 
@@ -91,7 +91,7 @@ darker; ECHO TIME 60 ms to 1 s), SPACE (room reverb), then VOLUME. Each is compl
 at zero, so the default sound is the raw recording.
 
 ## Presets
-50 starters in MPC's PRESET menu, in groups (the tag leads each name):
+110 presets in MPC's PRESET menu, alphabetized by category and name (the tag leads each name):
 - **ACO** acoustic: Clean Archtop, Acoustic Strum, Nylon-Style Soft, Front Porch, Funk Mutes, Ballad Strum, Lead Lines
 - **ELE** electric: Clean Electric, Chorus Clean, Crunch, Distorted Rhythm, Electric Mutes, Surf-ish, Lead Drive,
   Volume Swells
