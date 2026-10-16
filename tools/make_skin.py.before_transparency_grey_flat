@@ -1,0 +1,891 @@
+#!/usr/bin/env python3
+"""Draws Fretty's skin artwork and writes the matching layout, from one set of coordinates.
+
+    python3 tools/make_skin.py            (needs Playwright's Chromium and Pillow; run on a PC, not in the build)
+
+Writes vst/art/... (PNGs) and vst/layout.conf; both are committed, so the plugin build only reads them.
+Three pages: PLAY (the fretboard, instrument and strum, the guitar, FX and layer knobs, theme), LAYER A (the
+instrument, its response, the pluck layer, swell and release) and LAYER B (the synth: oscillator, response, envelope,
+filter). Both layer pages share a right column with the A / B switches and the MIX knob.
+
+What is static (the chassis, the neck, panel titles, the chrome wordmark) is one background picture per theme. What
+moves is a control: knobs (one filmstrip for every theme), the switches (an off/on picture pair per theme) and, per
+string, two display filmstrips the engine drives: s<n>_vib (how hard it rings: 0-3) and s<n>_fret (0 none, 1 open,
+2.. fret 1..15). MPC only swaps pictures when those values change (a few times per note), so the page never animates
+continuously (that would cost MPC's screen thread up to a core: mpc-vst-plugins docs/NOTES.md).
+
+Coordinates below are the plugin area (1280 x 628); layout.conf's are 86 px lower (MPC's header).
+"""
+import base64
+import os
+import sys
+
+from playwright.sync_api import sync_playwright
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+VST = os.path.join(HERE, "..", "vst")
+ART = os.path.join(VST, "art")
+Y_OFF = 86
+
+THEMES = ["black", "sunburst", "grey", "teal", "violet"]          # index = the "theme" parameter's option
+INSTRUMENTS = ["Acoustic", "Electric", "Folk Harp", "Concert Harp", "Strumstick", "Violin", "Violin Pizz",
+               "Dan Tranh", "Psaltery", "Bowed Psaltery"]
+ROW_Y, ROW_H = 236, 52                           # the PLAY page's row under the neck
+TOGGLES = [   # key, x, y, w, h, label
+    ("artic", 298, ROW_Y, 240, ROW_H, None),     # one picture with two lit halves: SUSTAIN | PALM MUTE
+    ("legato", 548, ROW_Y, 112, ROW_H, "LEGATO"),
+    ("drop", 910, ROW_Y, 104, ROW_H, "DROP D\u266d"),
+]
+ROW_STEPPERS = [  # key, cx, cy, w, h, text size
+    ("instrument", 152, ROW_Y + ROW_H // 2, 272, ROW_H, 21),
+    ("strum_mode", 785, ROW_Y + ROW_H // 2, 230, ROW_H, 19),
+]
+COLW = 141
+PANELS = [("GUITAR", "", 8, 3), ("FX", "", 8 + 3 * COLW + 8, 3), ("LAYERS", "", 8 + 6 * COLW + 16, 1)]
+KP_Y, KP_H = 300, 324
+KNOB_R = 44                                      # the builder's knob box is 2r + 10
+VALUE_PX = 26                                    # MPC's live value text under each knob (Titillium)
+KNOB_ROWS = (401, 546)                           # names sit 54 px above a knob's centre, its value box ends 75 px below
+KNOBS = [  # panel, col, row, key, label
+    (0, 0, 0, "blend", "BLEND"), (0, 1, 0, "tone", "TONE"), (0, 2, 0, "damp", "DAMP"),
+    (0, 0, 1, "vibrato", "VIBRATO"), (0, 1, 1, "strum_speed", "STRUM SPD"), (0, 2, 1, "noise", "NOISE"),
+    (1, 0, 0, "drive", "DRIVE"), (1, 1, 0, "chorus", "CHORUS"), (1, 2, 0, "echo", "ECHO"),
+    (1, 0, 1, "space", "SPACE"), (1, 1, 1, "volume", "VOLUME"), (1, 2, 1, "echo_time", "ECHO TIME"),
+    (2, 0, 0, "eng_mix", "PLUCK"), (2, 0, 1, "mix", "MIX A / B"),
+]
+# knobs that do nothing for some instruments: drawn dimmed while one of those is picked (indexes into INSTRUMENTS)
+DIM = {"blend": list(range(1, 10)),              # only the archtop has a pickup and a mic to blend
+       "noise": list(range(2, 10))}              # release / fret noises: the archtop and the electric
+STRIP = (1032, 236, 240, 384)                    # right column: wordmark + theme (MPC's Q-Link sidebar may cover it)
+STEPPERS = [("theme", "THEME", 1152, 580, 224, 52, 21)]   # key, label, cx, cy, w, h, text size: the column's foot
+NECK = dict(x0=132, x1=1272, yc=106, hn=70, he=84)
+METER_X0 = 36                                    # string pictures span the headstock badges to the right edge
+LOAD_BOX = (552, 76, 300, 60)                    # x, y, w, h: "loading" over the neck while an instrument loads
+
+# ---- the LAYER A / LAYER B pages (same grid)
+L_GRID = [(8, 8, 580, 284), (596, 8, 420, 284), (8, 300, 564, 324), (580, 300, 436, 324)]
+L_TITLES = {"A": ["A \u00b7 INSTRUMENT", "RESPONSE", "PLUCK LAYER", "SWELL"],
+            "B": ["B \u00b7 OSCILLATOR", "RESPONSE", "ENVELOPE", "FILTER"]}
+S_STRIP = (1032, 8, 240, 616)
+WAVE_BOX = (28, 44, 260, 136)                    # the waveform / instrument picture
+PIC_STEP = (158, 236, 260, 52)                   # cx, cy, w, h: the stepper under it
+L_KNOBS = {  # key, label, cx, cy, bw
+    "A": [("position", "POSITION", 390, 150, 124), ("capo", "CAPO", 516, 150, 124),
+          ("a_vel", "VELOCITY", 666, 150, 124), ("damp", "DAMP", 806, 150, 124), ("glide", "GLIDE", 946, 150, 124),
+          ("eng_mix", "PLUCK", 78, 520, 136), ("eng_sustain", "RING", 219, 520, 136), ("eng_color", "COLOR", 360, 520, 136),
+          ("eng_detune", "DETUNE", 501, 520, 136),
+          ("a_attack", "SWELL", 711, 520, 136), ("a_release", "RELEASE", 885, 520, 136)],
+    "B": [("octave", "OCTAVE", 390, 150, 124), ("syn_detune", "DETUNE", 516, 150, 124),
+          ("b_vel", "VELOCITY", 736, 150, 136), ("b_fenv", "FILTER ENV", 876, 150, 136),
+          ("attack", "ATTACK", 78, 520, 136), ("decay", "DECAY", 219, 520, 136), ("sustain", "SUSTAIN", 360, 520, 136),
+          ("release", "RELEASE", 501, 520, 136),
+          ("cutoff", "CUTOFF", 711, 520, 136), ("resonance", "RESONANCE", 885, 520, 136)],
+}
+MIX_KNOB = ("mix", "MIX A / B", 1152, 520, 200)
+S_TOGGLES = [("a_on", 1048, 180, 208, 56, "A \u00b7 GUITAR"), ("b_on", 1048, 252, 208, 56, "B \u00b7 SYNTH")]
+# ---- the PERFORM page
+P_PANELS = [("CHORD PADS", 8, 8, 580, 284), ("FEEL", 596, 8, 420, 284), ("CHORDS IN KEY", 8, 300, 1008, 324)]
+P_STEPPERS = [  # key, caption, cx, cy, w, h, text size
+    ("chord_mode", "CHORDS", 158, 100, 260, 52, 21), ("chord_key", "KEY", 438, 100, 260, 52, 21),
+    ("chord_scale", "SCALE", 158, 210, 260, 52, 21), ("chord_voicing", "VOICING", 438, 210, 260, 52, 21)]
+P_KNOBS = [("hum_time", "TIMING", 666, 150, 124), ("hum_vel", "VELOCITY", 806, 150, 124)]
+P_TOGGLE = ("echo_sync", 891, 124, 110, 52, "SYNC")       # key, x, y, w, h, label (the column at x 946)
+TILE = dict(x0=27, y=352, w=130, h=214, gap=10)         # the seven chord tiles
+NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII"]
+
+INST_INFO = [  # subtitle, strings drawn (h = harp, z = zither, p = psaltery), bow drawn
+    ("ARCHTOP \u00b7 PICKUP + MIC", 6, 0), ("SOLID BODY \u00b7 DIRECT", 6, 0), ("PLUCKED \u00b7 STEREO", "h", 0),
+    ("PEDAL HARP \u00b7 STEREO", "h", 0), ("THREE STRINGS \u00b7 BANJO-ISH", 3, 0),
+    ("BOWED \u00b7 HELD NOTES SUSTAIN", 4, 1), ("PIZZICATO \u00b7 PLUCKED", 4, 0),
+    ("VIETNAMESE ZITHER", "z", 0), ("PLUCKED \u00b7 STEREO", "p", 0),
+    ("BOWED \u00b7 HELD NOTES SUSTAIN", "p", 1)]
+
+
+def knob_xy(p, col, row):
+    return PANELS[p][2] + COLW * (col + 0.5), KNOB_ROWS[row]
+
+
+PAGE = r"""<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face { font-family: Script; src: url('FONT_URL'); }
+body { margin: 0; background: transparent; } canvas { display: block; }
+</style></head><body><canvas id="c"></canvas><script>
+const NECK = NECK_JSON;
+const SANS = 'Inter, "Titillium Web", "Helvetica Neue", Arial, sans-serif';
+const T = {
+  black:    { bg1:'#1d1d1d', bg2:'#0a0a0a', noise:0.05, panel1:'#191919', panel2:'#111111', edge:'rgba(255,255,255,0.08)', hi:'rgba(255,255,255,0.05)',
+              title:'#ff7b1c', dim:'#8e8e8e', accent:'#ff7b1c', accentText:'#1b0d02', wood:['#dbb67c','#c09658','#efd3a0'], grain:'light',
+              binding:'#161616', inlay:'#141414', head:['#1b1b1b','#0b0b0b'], btn1:'#282828', btn2:'#141414', btnEdge:'rgba(255,255,255,0.12)', btnText:'#eeeeee',
+              screw:['#d6d6d6','#5a5a5a'], rule:'#ff7b1c', chassisText:'#8e8e8e' },
+  sunburst: { bg1:'#2b1f16', bg2:'#0f0a07', noise:0.05, panel1:'#211812', panel2:'#17110c', edge:'rgba(214,219,226,0.26)', hi:'rgba(235,240,245,0.10)',
+              title:'#d6dade', dim:'#ad9a7e', accent:'#e2ac4a', accentText:'#1b120a', wood:['#3a2316','#22140c','#56341f'], grain:'dark',
+              binding:'#eadfc6', inlay:'#f4ecdb', head:['#2a190f','#160d08'], btn1:'#30241b', btn2:'#1b140f', btnEdge:'rgba(214,219,226,0.35)', btnText:'#f2e7d3',
+              screw:['#f2f4f6','#6f747a'], rule:'#c9ced4', chassisText:'#ad9a7e' },
+  grey:     { bg1:'#d6d3cb', bg2:'#aeaaa0', noise:0.06, panel1:'#2e2d2a', panel2:'#252422', edge:'rgba(0,0,0,0.35)', hi:'rgba(255,255,255,0.10)',
+              title:'#e2553e', dim:'#a19d94', accent:'#d03f2a', accentText:'#fff6f1', wood:['#3b2519','#25160e','#543525'], grain:'dark',
+              binding:'#efe6cf', inlay:'#efe8da', head:['#2c1b12','#170e09'], btn1:'#e6e3dc', btn2:'#c4c0b7', btnEdge:'rgba(0,0,0,0.22)', btnText:'#2a2926',
+              screw:['#f1efea','#8b877e'], rule:'#d03f2a', chassisText:'#a19d94' },
+  teal:     { bg1:'#0d2429', bg2:'#040b0e', noise:0.035, panel1:'#15343a', panel2:'#0a1d21', edge:'rgba(190,225,230,0.28)', hi:'rgba(220,250,255,0.07)',
+              title:'#76cbd4', dim:'#799da2', accent:'#2397a8', accentText:'#07191d', wood:['#4a3022','#2b1b14','#60412e'], grain:'dark',
+              binding:'#b8cbd0', inlay:'#dce8e9', head:['#19353a','#091a1e'], btn1:'#29464c', btn2:'#142d32', btnEdge:'rgba(190,235,240,0.30)', btnText:'#e7f4f5',
+              screw:['#dce7e9','#596a6d'], rule:'#2397a8', chassisText:'#9ab8bc' },
+  violet:   { bg1:'#1b1528', bg2:'#08060d', noise:0.035, panel1:'#292037', panel2:'#171120', edge:'rgba(210,195,235,0.28)', hi:'rgba(245,235,255,0.07)',
+              title:'#b7a0df', dim:'#9588a8', accent:'#8862c3', accentText:'#160e24', wood:['#4a3022','#2b1b14','#60412e'], grain:'dark',
+              binding:'#c8bfce', inlay:'#e9e0f0', head:['#30243f','#140e1d'], btn1:'#413451', btn2:'#241b31', btnEdge:'rgba(220,205,245,0.30)', btnText:'#f0eaf7',
+              screw:['#e8e0ee','#6c6176'], rule:'#8862c3', chassisText:'#b8a9ca' },
+};
+const TUNING = [40, 45, 50, 55, 59, 64];
+const NOTE = ['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
+const SCALE = (NECK.x1 - 40 - NECK.x0) / (1 - Math.pow(2, -15 / 12));
+const fretX = n => NECK.x0 + SCALE * (1 - Math.pow(2, -n / 12));
+const halfH = x => NECK.hn + (NECK.he - NECK.hn) * ((x - NECK.x0) / (NECK.x1 - NECK.x0));
+const stringY = (i, x) => NECK.yc + (2.5 - i) * (halfH(x) - 14) * 2 / 5;
+const WIDTHS = [3.6, 3.0, 2.4, 1.9, 1.35, 1.05];
+
+const cv = document.getElementById('c'); let ctx;
+function setup(w, h) { cv.width = w; cv.height = h; ctx = cv.getContext('2d'); ctx.clearRect(0, 0, w, h); }
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function rrect(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+function text(s, x, y, size, color, o = {}) {
+  // o.maxw: the text never gets wider than that; it steps down in size until it fits (no squashing, no overflow)
+  const font = sz => `${o.style || ''} ${o.weight || 600} ${sz}px ${o.font || SANS}`;
+  ctx.letterSpacing = (o.ls || 0) + 'px'; ctx.font = font(size);
+  if (o.maxw) while (size > 8 && ctx.measureText(s).width > o.maxw) { size -= 0.5; ctx.font = font(size); }
+  ctx.fillStyle = color; ctx.textAlign = o.align || 'left'; ctx.textBaseline = o.base || 'alphabetic';
+  ctx.fillText(s, x, y); ctx.letterSpacing = '0px';
+}
+function panel(t, x, y, w, h, r = 14) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur = 18;
+  ctx.shadowOffsetY = 6;
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, t.panel1);
+  g.addColorStop(1, t.panel2);
+  rrect(x, y, w, h, r);
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.restore();
+
+  rrect(x + 0.5, y + 0.5, w - 1, h - 1, r);
+  const black = t === T.black;
+  const sunburst = t === T.sunburst;
+  ctx.strokeStyle = black
+    ? 'rgba(220,228,235,0.72)'
+    : sunburst ? 'rgba(239,243,247,0.72)' : t.edge;
+  ctx.lineWidth = black ? 2 : sunburst ? 1.7 : 1;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(x + r, y + 1.5);
+  ctx.lineTo(x + w - r, y + 1.5);
+  ctx.strokeStyle = black
+    ? 'rgba(245,248,250,0.32)'
+    : sunburst ? 'rgba(250,252,255,0.38)' : t.hi;
+  ctx.lineWidth = black ? 1.5 : sunburst ? 1.4 : 1;
+  ctx.stroke();
+}
+function screw(t, x, y) {
+  const g = ctx.createRadialGradient(x - 1.5, y - 1.5, 0.5, x, y, 6); g.addColorStop(0, t.screw[0]); g.addColorStop(1, t.screw[1]);
+  ctx.beginPath(); ctx.arc(x, y, 5.5, 0, 6.283); ctx.fillStyle = g; ctx.fill();
+  ctx.save(); ctx.translate(x, y); ctx.rotate(0.6); ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(-4, -0.8, 8, 1.6); ctx.restore();
+}
+function noise(t, w, h) {
+  const r = mulberry32(7), n = document.createElement('canvas'); n.width = n.height = 192;
+  const nc = n.getContext('2d'), id = nc.createImageData(192, 192);
+  for (let k = 0; k < id.data.length; k += 4) { const v = r() * 255; id.data[k] = id.data[k + 1] = id.data[k + 2] = v; id.data[k + 3] = 255; }
+  nc.putImageData(id, 0, 0); ctx.globalAlpha = t.noise; ctx.fillStyle = ctx.createPattern(n, 'repeat'); ctx.fillRect(0, 0, w, h); ctx.globalAlpha = 1;
+}
+function wood(t) {
+  const W = NECK.x1 - NECK.x0 + 40, H = 260, wc = document.createElement('canvas'); wc.width = W; wc.height = H;
+  const g = wc.getContext('2d'), rr = mulberry32(11), base = g.createLinearGradient(0, 0, 0, H);
+  base.addColorStop(0, t.wood[1]); base.addColorStop(0.5, t.wood[0]); base.addColorStop(1, t.wood[1]); g.fillStyle = base; g.fillRect(0, 0, W, H);
+  for (let k = 0; k < 420; k++) {
+    const y = rr() * H, amp = 1 + rr() * 5, f = 0.002 + rr() * 0.006, ph = rr() * 6.28, light = rr() < (t.grain === 'light' ? 0.55 : 0.35);
+    g.strokeStyle = light ? t.wood[2] : t.wood[1]; g.globalAlpha = 0.08 + rr() * (t.grain === 'light' ? 0.22 : 0.3); g.lineWidth = 0.4 + rr() * 2.2;
+    g.beginPath(); for (let x = 0; x <= W; x += 12) { const yy = y + Math.sin(x * f + ph) * amp + Math.sin(x * f * 3.1 + ph * 2) * amp * 0.3; x ? g.lineTo(x, yy) : g.moveTo(x, yy); } g.stroke();
+  }
+  g.globalAlpha = t.grain === 'light' ? 0.18 : 0.3;
+  for (let k = 0; k < 900; k++) { g.fillStyle = rr() < 0.5 ? t.wood[1] : t.wood[2]; g.fillRect(rr() * W, rr() * H, 2 + rr() * 9, 0.6 + rr() * 0.8); }
+  return wc;
+}
+function neckPath() {
+  const { x0, x1, yc, hn } = NECK; ctx.beginPath();
+  ctx.moveTo(x0, yc - hn); ctx.lineTo(x1 + 30, yc - halfH(x1 + 30)); ctx.lineTo(x1 + 30, yc + halfH(x1 + 30)); ctx.lineTo(x0, yc + hn); ctx.closePath();
+}
+function stringPath(i, x0) { ctx.beginPath(); ctx.moveTo(x0, stringY(i, x0)); ctx.lineTo(NECK.x1 + 30, stringY(i, NECK.x1 + 30)); }
+function drawString(i, x0, color, alpha) {
+  ctx.save(); ctx.globalAlpha = alpha; ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 4; ctx.shadowOffsetY = 4;
+  stringPath(i, x0); ctx.lineWidth = WIDTHS[i]; ctx.strokeStyle = color; ctx.stroke(); ctx.restore();
+  ctx.save(); ctx.globalAlpha = alpha;
+  if (i < 4) { stringPath(i, x0); ctx.setLineDash([1.3, 1.7]); ctx.lineWidth = WIDTHS[i] * 0.85; ctx.strokeStyle = 'rgba(40,35,30,0.38)'; ctx.stroke(); ctx.setLineDash([]); }
+  stringPath(i, x0); ctx.lineWidth = Math.max(0.6, WIDTHS[i] * 0.3); ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.stroke(); ctx.restore();
+}
+function badge(x, y, label, lit, accent, accentText) {
+  ctx.beginPath(); ctx.arc(x, y, 10.5, 0, 6.283); ctx.fillStyle = lit ? accent : 'rgba(0,0,0,0.45)'; ctx.fill();
+  ctx.strokeStyle = lit ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1; ctx.stroke();
+  text(label, x, y + 1, 14, lit ? accentText : '#efe6d6', { align: 'center', base: 'middle', weight: 800, maxw: 18 });
+}
+function fretboardStringBadge(x, y, label) {
+  y = 115 + (y - 106) * 1.5625;
+  ctx.beginPath(); ctx.arc(x, y, 14.5, 0, 6.283);
+  ctx.save();
+  ctx.shadowColor = 'rgba(255,255,255,0.22)'; ctx.shadowBlur = 5;
+  ctx.fillStyle = 'rgba(8,10,12,0.82)'; ctx.fill(); ctx.restore();
+  ctx.strokeStyle = 'rgba(235,240,245,0.48)'; ctx.lineWidth = 1.2; ctx.stroke();
+  text(label, x, y + 1, 21, '#ffffff', { align: 'center', base: 'middle', weight: 800, maxw: 26 });
+}
+function chromeWordmark(word, cx, cy, size, gold = false) {
+  // drawn on its own layer so the shine stays inside the letters
+  const L = document.createElement('canvas'); L.width = cv.width; L.height = cv.height; const g2 = L.getContext('2d');
+  const main = ctx; ctx = g2;
+  ctx.font = `${size}px Script`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  const m = ctx.measureText(word), top = cy - m.actualBoundingBoxAscent, bot = cy + m.actualBoundingBoxDescent;
+  const g = ctx.createLinearGradient(0, top, 0, bot);
+  if (gold) {
+    g.addColorStop(0.00, '#fff4c2'); g.addColorStop(0.22, '#d9b65c');
+    g.addColorStop(0.42, '#987027'); g.addColorStop(0.52, '#604315');
+    g.addColorStop(0.66, '#c49a3c'); g.addColorStop(0.84, '#f4df91');
+    g.addColorStop(1.00, '#fff0b5');
+  } else {
+    g.addColorStop(0.00, '#ffffff'); g.addColorStop(0.30, '#e3e6ea'); g.addColorStop(0.48, '#9aa0a8');
+    g.addColorStop(0.52, '#3e434a'); g.addColorStop(0.60, '#7a8089'); g.addColorStop(0.82, '#d9dde2'); g.addColorStop(1.00, '#ffffff');
+  }
+  ctx.fillStyle = g; ctx.fillText(word, cx, cy);
+  ctx.globalCompositeOperation = 'source-atop';
+  const s = ctx.createLinearGradient(cx - 110, top, cx + 30, bot);
+  s.addColorStop(0.0, 'rgba(255,255,255,0)'); s.addColorStop(0.45, 'rgba(255,255,255,0.7)'); s.addColorStop(0.55, 'rgba(255,255,255,0)');
+  ctx.fillStyle = s; ctx.fillRect(cx - 200, top - 10, 400, bot - top + 20);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.lineWidth = 0.9;
+  ctx.strokeStyle = gold ? 'rgba(255,239,180,0.72)' : 'rgba(255,255,255,0.6)';
+  ctx.strokeText(word, cx, cy - 0.8);
+  ctx = main;
+  // dark outline + shadow under the chrome layer
+  ctx.font = `${size}px Script`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.save();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  ctx.lineJoin = 'round'; ctx.lineWidth = gold ? 3.2 : 4;
+  ctx.strokeStyle = gold ? '#76551d' : '#121316';
+  ctx.strokeText(word, cx, cy);
+  ctx.restore();
+  ctx.lineWidth = gold ? 1.4 : 2;
+  ctx.strokeStyle = gold ? '#c6a24b' : '#80868e';
+  ctx.lineJoin = 'round'; ctx.strokeText(word, cx, cy);
+  ctx.drawImage(L, 0, 0);
+}
+
+// ---------- the page background (one per theme) ----------
+function background(name) {
+  const t = T[name], W = 1280, H = 628; setup(W, H);
+  const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, t.bg1); g.addColorStop(1, t.bg2); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  noise(t, W, H);
+  // neck panel
+  const P = { x: 8, y: 8, w: 1264, h: 214 }; panel(t, P.x, P.y, P.w, P.h);
+  ctx.save(); rrect(P.x + 1, P.y + 1, P.w - 2, P.h - 2, 13); ctx.clip();
+  const { x0, x1, yc, hn, he } = NECK;
+  const hg = ctx.createLinearGradient(0, yc - 110, 0, yc + 110); hg.addColorStop(0, t.head[1]); hg.addColorStop(0.5, t.head[0]); hg.addColorStop(1, t.head[1]);
+  ctx.beginPath(); ctx.moveTo(x0, yc - hn - 8); ctx.bezierCurveTo(x0 - 40, yc - hn - 6, x0 - 70, yc - hn - 18, x0 - 120, yc - hn - 22);
+  ctx.lineTo(x0 - 120, yc + hn + 22); ctx.bezierCurveTo(x0 - 70, yc + hn + 18, x0 - 40, yc + hn + 6, x0, yc + hn + 8); ctx.closePath(); ctx.fillStyle = hg; ctx.fill();
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 5; neckPath(); ctx.fillStyle = t.wood[0]; ctx.fill(); ctx.restore();
+  ctx.save(); neckPath(); ctx.clip(); ctx.drawImage(wood(t), x0, yc - 130);
+  const rs = ctx.createLinearGradient(0, yc - he, 0, yc + he); rs.addColorStop(0, 'rgba(0,0,0,0.30)'); rs.addColorStop(0.18, 'rgba(0,0,0,0)'); rs.addColorStop(0.82, 'rgba(0,0,0,0)'); rs.addColorStop(1, 'rgba(0,0,0,0.35)');
+  ctx.fillStyle = rs; ctx.fillRect(x0, yc - 130, x1 - x0 + 40, 260);
+  const inlay = (n, dy) => {
+    const x = (fretX(n - 1) + fretX(n)) / 2, y = yc + dy;
+    if (name === 'black') {
+      ctx.save(); ctx.shadowColor = 'rgba(255,255,255,0.42)'; ctx.shadowBlur = 7;
+      ctx.beginPath(); ctx.arc(x, y, 8, 0, 6.283); ctx.fillStyle = '#f1e5c8'; ctx.fill(); ctx.restore();
+    }
+    const gg = ctx.createRadialGradient(x - 2, y - 2, 1, x, y, 9);
+    gg.addColorStop(0, t.inlay);
+    gg.addColorStop(1, t.grain === 'light' ? '#000' : '#cfc3a8');
+    ctx.beginPath(); ctx.arc(x, y, 8, 0, 6.283); ctx.fillStyle = gg; ctx.fill();
+  };
+  [3, 5, 7, 9, 15].forEach(n => inlay(n, 0)); { const sp = (halfH(fretX(12)) - 14) * 2 / 5; inlay(12, -sp * 1.5); inlay(12, sp * 1.5); }
+  for (let n = 1; n <= 16; n++) {
+    const x = fretX(n), h = halfH(x), fg = ctx.createLinearGradient(x - 2.5, 0, x + 2.5, 0);
+    fg.addColorStop(0, '#868b90'); fg.addColorStop(0.45, '#f4f6f7'); fg.addColorStop(1, '#868b90');
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(x + 1.5, yc - h, 3, h * 2); ctx.fillStyle = fg; ctx.fillRect(x - 2.5, yc - h, 5, h * 2);
+  }
+  ctx.restore();
+  ctx.lineWidth = 3; ctx.strokeStyle = t.binding;
+  ctx.beginPath(); ctx.moveTo(x0, yc - hn + 1.5); ctx.lineTo(x1 + 30, yc - halfH(x1 + 30) + 1.5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x0, yc + hn - 1.5); ctx.lineTo(x1 + 30, yc + halfH(x1 + 30) - 1.5); ctx.stroke();
+  const ng = ctx.createLinearGradient(x0 - 10, 0, x0, 0); ng.addColorStop(0, '#bfb69f'); ng.addColorStop(0.5, '#ece5d2'); ng.addColorStop(1, '#cfc6b0');
+  ctx.fillStyle = ng; ctx.fillRect(x0 - 10, yc - hn - 2, 11, hn * 2 + 4);
+  for (let i = 0; i < 6; i++) drawString(i, x0, '#ecebe6', 1);
+  [1, 3, 5, 7, 9, 12, 15].forEach(n => text(String(n), (fretX(n - 1) + fretX(n)) / 2, P.y + P.h - 6, 15, t.dim, { align: 'center', weight: 700 }));
+  ctx.restore();
+  for (let i = 0; i < 6; i++) fretboardStringBadge(58, stringY(i, x0), NOTE[TUNING[i] % 12]);
+  screw(t, P.x + 14, P.y + 14); screw(t, P.x + 14, P.y + P.h - 14);
+  // Knob panels remain dark in every theme.
+  for (const [title, sub, x, cols] of PANELS_JSON) {
+    const w = cols * COLW; panel(t, x, KP_Y, w, KP_H);
+    text(title, x + 20, KP_Y + 22, 14, t.title, { weight: 800, ls: 2.6, maxw: w - 40 });
+    if (sub) text(sub, x + w - 20, KP_Y + 24, 11, '#8e8e8e', { weight: 600, ls: 1.6, align: 'right' });
+  }
+  for (const [x, y, label] of KNOB_LABELS_JSON) text(label, x, y - 54, 16, '#efe9d8', { align: 'center', weight: 800, ls: 1.4, maxw: 118 });
+  // the row under the neck: the instrument and strum steppers (their arrows are cropped from this picture)
+  for (const [key, cx, cy, w, h] of ROW_STEP_DATA) arrowPlates(t, w, h, cx - w / 2, cy - h / 2);
+  // right column: the wordmark fills it, the theme stepper sits at its foot
+  const [sx, sy, sw, sh] = STRIP_JSON; panel(t, sx, sy, sw, sh);
+  const [, , , scy, , sth] = STEPPERS_JSON[0];
+  const capY = scy - sth / 2 - 18;                       // the THEME caption, just over the stepper
+  wordPlate(sx + 14, sy + 14, sw - 28, capY - 20 - (sy + 14), 92, t);
+  for (const [key, label, cx, cy, w, h] of STEPPERS_JSON) {
+    text(label, cx, capY, 14, t.chassisText, { weight: 800, ls: 2.8, align: 'center' });
+    arrowPlates(t, w, h, cx - w / 2, cy - h / 2);
+  }
+  return cv.toDataURL('image/png');
+}
+function wordPlate(x, y, w, h, size, t) {
+  const themed = t === T.teal || t === T.violet;
+  if (themed) {
+    rrect(x, y, w, h, 12);
+    const dark = ctx.createLinearGradient(0, y, 0, y + h);
+    dark.addColorStop(0, '#242321');
+    dark.addColorStop(1, '#111110');
+    ctx.fillStyle = dark;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  } else {
+    rrect(x, y, w, h, 12);
+    const dark = ctx.createLinearGradient(0, y, 0, y + h);
+    dark.addColorStop(0, '#242321');
+    dark.addColorStop(1, '#111110');
+    ctx.fillStyle = dark;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  // as big as the plate allows (a margin all round), centred on the letters' own height
+  ctx.font = `${size}px Script`;
+  let m = ctx.measureText('Fretty');
+  while (size > 30 && (m.width > w - 40 || m.actualBoundingBoxAscent + m.actualBoundingBoxDescent > h - 36)) {
+    size -= 1; ctx.font = `${size}px Script`; m = ctx.measureText('Fretty');
+  }
+  const cy = y + h / 2 + (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2;
+  chromeWordmark('Fretty', x + w / 2, cy, size, themed);
+}
+
+// ---------- the LAYER A / LAYER B page backgrounds (one per theme) ----------
+function layerBackground(name, which) {
+  const t = T[name], W = 1280, H = 628; setup(W, H);
+  const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, t.bg1); g.addColorStop(1, t.bg2); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  noise(t, W, H);
+  const titles = LAYER_TITLES[which];
+  LAYER_GRID.forEach(([x, y, w, h], i) => { panel(t, x, y, w, h); text(titles[i], x + 20, y + 25, 15, t.title, { weight: 800, ls: 2.6, maxw: w - 40 }); });
+  // the picture's bezel (waveform or instrument) and the stepper under it
+  { const [x, y, w, h] = WAVE_BOX_JSON; rrect(x - 6, y - 6, w + 12, h + 12, 12); ctx.fillStyle = '#0a0a0a'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1; ctx.stroke(); }
+  { const [cx, cy, w, h] = PIC_STEP_JSON; arrowPlates(t, w, h, cx - w / 2, cy - h / 2); }
+  if (which === 'A') { stringIcon(40, 352, 500, 92, t.title); swellIcon(612, 352, 372, 92, t.title); }
+  else { adsrIcon(40, 352, 500, 92, t.title); filterIcon(612, 352, 372, 92, t.title); }
+  // right column: wordmark, the layer switches, the mix
+  const [sx, sy, sw, sh] = SYNTH_COLUMN_DATA; panel(t, sx, sy, sw, sh);
+  wordPlate(sx + 14, sy + 14, sw - 28, 104, 60);
+  text('LAYERS', sx + sw / 2, sy + 156, 14, t.chassisText, { weight: 800, ls: 2.8, align: 'center' });
+  text('TAP TO SOLO OR LAYER', sx + sw / 2, sy + 332, 11.5, t.chassisText, { weight: 700, ls: 1.4, align: 'center', maxw: sw - 24 });
+  for (const [key, label, cx, cy] of LAYER_KNOB_DATA[which].concat([MIX_KNOB_JSON]))
+    text(label, cx, cy - 54, 16, '#efe9d8', { align: 'center', weight: 800, ls: 1.4, maxw: 118 });
+  return cv.toDataURL('image/png');
+}
+// ---------- the PERFORM page background (one per theme) ----------
+function tileRect(i) { const T = TILE_JSON; return [T.x0 + i * (T.w + T.gap), T.y, T.w, T.h]; }
+function performBackground(name) {
+  const t = T[name], W = 1280, H = 628; setup(W, H);
+  const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, t.bg1); g.addColorStop(1, t.bg2); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  noise(t, W, H);
+  for (const [title, x, y, w, h] of PERF_PANELS) { panel(t, x, y, w, h); text(title, x + 20, y + 25, 15, t.title, { weight: 800, ls: 2.6 }); }
+  for (const [key, cap, cx, cy, w, h] of PERF_STEPPERS) {
+    text(cap, cx, cy - h / 2 - 14, 14, t.chassisText, { weight: 800, ls: 2.8, align: 'center' });
+    arrowPlates(t, w, h, cx - w / 2, cy - h / 2);
+  }
+  text('EVERY PAD PLAYS THE CHORD OF ITS NOTE IN THIS KEY', 298, 276, 11.5, t.chassisText, { weight: 700, ls: 1.2, align: 'center', maxw: 540 });
+  for (const [key, label, cx, cy] of PERF_KNOBS) text(label, cx, cy - 54, 16, '#efe9d8', { align: 'center', weight: 800, ls: 1.4, maxw: 118 });
+  { const [key, x, y, w, h] = PERF_TOGGLE;
+    text('ECHO', x + w / 2, y - 26, 16, '#efe9d8', { align: 'center', weight: 800, ls: 1.4 });
+    text('ON THE BEAT', x + w / 2, y + h + 30, 11.5, t.chassisText, { align: 'center', weight: 700, ls: 1.2 }); }
+  // the chord tiles: numeral on top, the chord's name is MPC's live text in the middle
+  for (let i = 0; i < 7; i++) {
+    const [x, y, w, h] = tileRect(i);
+    rrect(x, y, w, h, 12); const tg = ctx.createLinearGradient(0, y, 0, y + h); tg.addColorStop(0, '#161616'); tg.addColorStop(1, '#0c0c0c');
+    ctx.fillStyle = tg; ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1; ctx.stroke();
+    text(NUMERALS_JSON[i], x + w / 2, y + 40, 22, t.title, { align: 'center', weight: 800, ls: 1 });
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(x + 16, y + 56, w - 32, 1);
+  }
+  text('SET THE PADS TO CHROMATIC, OR TO THIS SCALE: A NOTE BETWEEN TWO DEGREES PLAYS THE LOWER ONE', 512, 604, 11.5, t.chassisText,
+       { weight: 700, ls: 1.1, align: 'center', maxw: 960 });
+  const [sx, sy, sw, sh] = SYNTH_COLUMN_DATA; panel(t, sx, sy, sw, sh);
+  wordPlate(sx + 14, sy + 14, sw - 28, sh - 28, 92);
+  return cv.toDataURL('image/png');
+}
+// the tile lit for the chord playing (frame 0: none, 1-7: that degree)
+function chordLitStrip() {
+  const T = TILE_JSON, W = 7 * T.w + 6 * T.gap + 16, H = T.h + 16; setup(W * 8, H);
+  for (let f = 1; f < 8; f++) {
+    const [x0] = tileRect(0), [x, y, w, h] = tileRect(f - 1), ox = f * W + (x - x0) + 8;
+    ctx.save(); ctx.shadowColor = 'rgba(255,170,90,0.75)'; ctx.shadowBlur = 14;
+    rrect(ox, 8, w, h, 12); ctx.strokeStyle = '#ff9a3c'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.restore();
+    rrect(ox, 8, w, h, 12); ctx.fillStyle = 'rgba(255,140,40,0.13)'; ctx.fill();
+  }
+  return cv.toDataURL('image/png');
+}
+function stringIcon(x, y, w, h, color) {     // a plucked string ringing down
+  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2.2; ctx.globalAlpha = 0.85; ctx.beginPath();
+  for (let i = 0; i <= 500; i++) { const u = i / 500, e = Math.exp(-u * 3.2), yy = y + h / 2 - Math.sin(u * 62) * e * h * 0.45;
+    i ? ctx.lineTo(x + u * w, yy) : ctx.moveTo(x, yy); }
+  ctx.stroke(); ctx.restore();
+  ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, y + h / 2 + 0.5); ctx.lineTo(x + w, y + h / 2 + 0.5); ctx.stroke(); ctx.restore();
+}
+function swellIcon(x, y, w, h, color) {      // fade in, ring, let go
+  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.globalAlpha = 0.85;
+  ctx.beginPath(); ctx.moveTo(x, y + h); ctx.bezierCurveTo(x + w * 0.25, y + h, x + w * 0.22, y + h * 0.05, x + w * 0.42, y + h * 0.05);
+  ctx.quadraticCurveTo(x + w * 0.6, y + h * 0.15, x + w * 0.66, y + h * 0.3); ctx.bezierCurveTo(x + w * 0.78, y + h * 0.55, x + w * 0.88, y + h, x + w, y + h); ctx.stroke();
+  ctx.globalAlpha = 0.12; ctx.fillStyle = color; ctx.lineTo(x, y + h); ctx.fill(); ctx.restore();
+}
+// one picture per instrument (the LAYER A screen), the same in every theme
+function instPicture(i, w, h) {
+  setup(w, h);
+  rrect(0, 0, w, h, 8); ctx.fillStyle = '#0d0d0d'; ctx.fill();
+  ctx.save(); rrect(0, 0, w, h, 8); ctx.clip();
+  const [sub, strings, bow] = INST_INFO_JSON[i], name = INST_NAMES_JSON[i].toUpperCase();
+  ctx.save(); ctx.shadowColor = 'rgba(255,236,200,0.8)'; ctx.shadowBlur = 10;
+  text(name, 16, 38, name.length > 10 ? 22 : 26, '#f6eedd', { weight: 800, ls: 1.5 }); ctx.restore();
+  text(sub, 16, 59, 12, '#a39e93', { weight: 700, ls: 1.2, maxw: w - 32 });
+  ctx.save(); ctx.strokeStyle = '#f6eedd'; ctx.shadowColor = 'rgba(255,236,200,0.9)'; ctx.shadowBlur = 6; ctx.globalAlpha = 0.9;
+  if (strings === 'z') {           // zither: many fine strings, each on its own movable bridge
+    for (let k = 0; k < 14; k++) { const y = 74 + k * 3.9; ctx.lineWidth = 0.7 + k * 0.05;
+      ctx.beginPath(); ctx.moveTo(16, y); ctx.lineTo(w - 16, y); ctx.stroke();
+      const bx = 70 + k * 9; ctx.fillStyle = '#f6eedd'; ctx.fillRect(bx - 2, y - 2, 4, 4); }
+  } else if (strings === 'p') {    // psaltery: a triangle of strings
+    ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(30, h - 12); ctx.lineTo(w - 30, h - 12); ctx.lineTo(w / 2 + 40, 70); ctx.closePath(); ctx.stroke();
+    for (let k = 1; k < 12; k++) { const u = k / 12, x = 30 + u * (w - 60), top = (h - 12) - (h - 82) * Math.min(u / 0.69, (1 - u) / 0.31);
+      ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(x, h - 13); ctx.lineTo(x, top + 2); ctx.stroke(); }
+  } else if (strings === 'h') {    // harp: strings fanning down from the neck
+    for (let k = 0; k < 15; k++) { const x = 22 + k * 15.5, top = 74 + k * 2.2, bot = h - 12 - (14 - k) * 0.4;
+      ctx.lineWidth = 1.6 - k * 0.06; ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bot); ctx.stroke(); }
+    ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(14, 72); ctx.quadraticCurveTo(w / 2, 62, w - 14, 106); ctx.stroke();
+  } else {
+    const n = strings, y0 = 80, y1 = h - 16;
+    for (let k = 0; k < n; k++) { const y = n === 1 ? (y0 + y1) / 2 : y0 + (y1 - y0) * k / (n - 1);
+      ctx.lineWidth = 0.9 + (n - 1 - k) * (2.2 / n); ctx.beginPath(); ctx.moveTo(16, y); ctx.lineTo(w - 16, y); ctx.stroke(); }
+  }
+  if (bow) {                       // the bow
+    {
+      ctx.globalAlpha = 0.75; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(60, h - 10); ctx.lineTo(w - 40, 74); ctx.stroke();
+      ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(64, h - 4); ctx.lineTo(w - 36, 80); ctx.stroke(); }
+  }
+  ctx.restore(); ctx.restore();
+  return cv.toDataURL('image/png');
+}
+// the "loading" banner over the neck: 0 nothing, 1 loading, 2 samples missing
+function loadStrip(w, h) {
+  setup(w * 3, h);
+  [[1, 'LOADING SAMPLES\u2026', '#f3ecdc'], [2, 'SAMPLES MISSING', '#ff8a6a']].forEach(([f, label, col]) => {
+    const x = f * w; ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 14;
+    rrect(x + 10, 8, w - 20, h - 16, (h - 16) / 2); ctx.fillStyle = 'rgba(12,12,12,0.92)'; ctx.fill(); ctx.restore();
+    rrect(x + 10.5, 8.5, w - 21, h - 17, (h - 16) / 2); ctx.strokeStyle = col; ctx.globalAlpha = 0.6; ctx.lineWidth = 1.5; ctx.stroke(); ctx.globalAlpha = 1;
+    text(label, x + w / 2, h / 2 + 1, 19, col, { align: 'center', base: 'middle', weight: 800, ls: 2.2, maxw: w - 56 });
+  });
+  return cv.toDataURL('image/png');
+}
+function adsrIcon(x, y, w, h, color) {
+  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.globalAlpha = 0.85;
+  ctx.beginPath(); ctx.moveTo(x, y + h); ctx.lineTo(x + w * 0.16, y); ctx.quadraticCurveTo(x + w * 0.24, y + h * 0.42, x + w * 0.38, y + h * 0.42);
+  ctx.lineTo(x + w * 0.72, y + h * 0.42); ctx.quadraticCurveTo(x + w * 0.8, y + h * 0.42, x + w, y + h); ctx.stroke();
+  ctx.globalAlpha = 0.12; ctx.fillStyle = color; ctx.lineTo(x, y + h); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, y + h + 0.5); ctx.lineTo(x + w, y + h + 0.5); ctx.stroke(); ctx.restore();
+}
+function filterIcon(x, y, w, h, color) {
+  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.globalAlpha = 0.85;
+  ctx.beginPath(); ctx.moveTo(x, y + h * 0.45);
+  ctx.lineTo(x + w * 0.42, y + h * 0.45); ctx.quadraticCurveTo(x + w * 0.52, y + h * 0.45, x + w * 0.55, y + h * 0.05);
+  ctx.quadraticCurveTo(x + w * 0.6, y + h * 0.5, x + w * 0.72, y + h * 0.9); ctx.lineTo(x + w, y + h); ctx.stroke();
+  ctx.globalAlpha = 0.12; ctx.fillStyle = color; ctx.lineTo(x, y + h); ctx.lineTo(x, y + h * 0.45); ctx.fill(); ctx.restore();
+}
+// one picture per wave shape, the same in every theme
+function wavePicture(kind, w, h) {
+  setup(w, h);
+  rrect(0, 0, w, h, 8); ctx.fillStyle = '#0d0d0d'; ctx.fill();
+  ctx.save(); rrect(0, 0, w, h, 8); ctx.clip();
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
+  for (let gx = 0; gx <= w; gx += w / 8) { ctx.beginPath(); ctx.moveTo(gx + 0.5, 0); ctx.lineTo(gx + 0.5, h); ctx.stroke(); }
+  for (let gy = 0; gy <= h; gy += h / 4) { ctx.beginPath(); ctx.moveTo(0, gy + 0.5); ctx.lineTo(w, gy + 0.5); ctx.stroke(); }
+  const pad = 16, mid = h / 2, amp = h * 0.32, cyc = 2;
+  const f = u => { const ph = (u * cyc) % 1;
+    return kind === 0 ? Math.sin(2 * Math.PI * ph) : kind === 1 ? 1 - 4 * Math.abs(ph - 0.5) : kind === 2 ? 2 * ph - 1 : (ph < 0.5 ? 1 : -1); };
+  ctx.beginPath();
+  for (let i = 0; i <= 400; i++) { const u = i / 400, x = pad + u * (w - 2 * pad), y = mid - f(u) * amp;
+    if (kind >= 2 && i > 0) { const pu = (i - 1) / 400, jump = Math.abs(f(u) - f(pu)) > 1; if (jump) { ctx.lineTo(x, mid - f(pu) * amp); } }
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+  ctx.save(); ctx.shadowColor = 'rgba(255,236,200,0.9)'; ctx.shadowBlur = 10; ctx.strokeStyle = '#f6eedd'; ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.stroke(); ctx.restore();
+  ctx.restore();
+  return cv.toDataURL('image/png');
+}
+
+// ---------- switches: off / on pictures, per theme ----------
+function button(t, x, y, w, h, label, on, size = 17) {
+  ctx.save(); ctx.shadowColor = on ? t.accent : 'rgba(0,0,0,0.45)'; ctx.shadowBlur = on ? 10 : 6; ctx.shadowOffsetY = on ? 0 : 2;
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  if (on) { g.addColorStop(0, t.accent); g.addColorStop(1, t.accent); } else { g.addColorStop(0, t.btn1); g.addColorStop(1, t.btn2); }
+  rrect(x, y, w, h, 10); ctx.fillStyle = g; ctx.fill(); ctx.restore();
+  if (on) { ctx.save(); rrect(x, y, w, h, 10); ctx.clip(); const s = ctx.createLinearGradient(0, y, 0, y + h);
+    s.addColorStop(0, 'rgba(255,255,255,0.28)'); s.addColorStop(0.5, 'rgba(255,255,255,0)'); s.addColorStop(1, 'rgba(0,0,0,0.12)'); ctx.fillStyle = s; ctx.fillRect(x, y, w, h); ctx.restore(); }
+  rrect(x + 0.5, y + 0.5, w - 1, h - 1, 10); ctx.strokeStyle = on ? 'rgba(255,255,255,0.25)' : t.btnEdge; ctx.lineWidth = 1; ctx.stroke();
+  text(label, x + w / 2, y + h / 2 + 1, size, on ? t.accentText : t.btnText, { align: 'center', base: 'middle', weight: 800, ls: 1.1, maxw: w - 16 });
+}
+function toggleImage(name, w, h, label, on) {
+  const t = T[name], pad = 8; setup(w + 2 * pad, h + 2 * pad);
+  if (label === null) {      // articulation: two halves, the lit one is the current option
+    const half = (w - 14) / 2;
+    button(t, pad, pad, half, h, 'SUSTAIN', !on, 15); button(t, pad + half + 14, pad, half, h, 'PALM MUTE', on, 15);   // one size for both halves
+  } else button(t, pad, pad, w, h, label, on);
+  return cv.toDataURL('image/png');
+}
+
+// ---------- the knob: one filmstrip for every theme ----------
+function knobStrip(frames, r, dim) {
+  const S = 2 * r; setup(S, S * frames);
+  if (dim) ctx.globalAlpha = 0.28;           // a control that does nothing for this instrument
+  const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25, kr = r - 13;
+  for (let f = 0; f < frames; f++) {
+    const v = f / (frames - 1), cx = r, cy = f * S + r, av = a0 + (a1 - a0) * v;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(cx, cy, r - 5, a0, a1); ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 4.5; ctx.stroke();
+    if (v > 0.002 && !dim) { ctx.save(); ctx.shadowColor = 'rgba(255,244,220,0.55)'; ctx.shadowBlur = 6; ctx.beginPath(); ctx.arc(cx, cy, r - 5, a0, av);
+      ctx.strokeStyle = '#f3ecdc'; ctx.lineWidth = 4.5; ctx.stroke(); ctx.restore(); }
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 4;
+    const g = ctx.createLinearGradient(cx, cy - kr, cx, cy + kr); g.addColorStop(0, '#eef0f3'); g.addColorStop(1, '#6f747b');
+    ctx.beginPath(); ctx.arc(cx, cy, kr, 0, 6.283); ctx.fillStyle = g; ctx.fill(); ctx.restore();
+    ctx.strokeStyle = 'rgba(0,0,0,0.30)'; ctx.lineWidth = 1.3;
+    for (let n = 0; n < 56; n++) { const a = n / 56 * 6.283 + av; ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * (kr - 6), cy + Math.sin(a) * (kr - 6)); ctx.lineTo(cx + Math.cos(a) * (kr - 1.2), cy + Math.sin(a) * (kr - 1.2)); ctx.stroke(); }
+    const cg = ctx.createLinearGradient(cx, cy - kr, cx, cy + kr); cg.addColorStop(0, '#3a3a3a'); cg.addColorStop(1, '#121212');
+    ctx.beginPath(); ctx.arc(cx, cy, kr - 8, 0, 6.283); ctx.fillStyle = cg; ctx.fill();
+    const sh = ctx.createRadialGradient(cx - 8, cy - 11, 2, cx, cy, kr - 8); sh.addColorStop(0, 'rgba(255,255,255,0.16)'); sh.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sh; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx + Math.cos(av) * 8, cy + Math.sin(av) * 8); ctx.lineTo(cx + Math.cos(av) * (kr - 12), cy + Math.sin(av) * (kr - 12));
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3.5; ctx.lineCap = 'round'; ctx.stroke();
+  }
+  return cv.toDataURL('image/png');
+}
+
+// ---------- string pictures (every theme): ring levels and the lit fret ----------
+function meterBox(i) {
+  const ya = stringY(i, NECK.x0), yb = stringY(i, NECK.x1), y = Math.round((ya + yb) / 2);
+  return { x: METER_X0, y: y - 16, w: 1272 - METER_X0, h: 32 };
+}
+function vibStrip(i) {
+  const b = meterBox(i); setup(b.w * 4, b.h);
+  for (let lvl = 1; lvl < 4; lvl++) {
+    ctx.save(); ctx.translate(lvl * b.w - b.x, -b.y);
+    ctx.beginPath(); ctx.rect(b.x, b.y, b.w, b.h); ctx.clip();
+    const amp = [0, 2.2, 4.2, 7.0][lvl], x0 = NECK.x0, xb = NECK.x1 + 300;
+    // a soft blur band (a string moving faster than the eye), brightest mid-string, then the string itself
+    ctx.beginPath();
+    for (let x = x0; x <= NECK.x1 + 30; x += 4) { const u = (x - x0) / (xb - x0), e = amp * Math.sin(Math.PI * u) + 0.6; ctx.lineTo(x, stringY(i, x) - e); }
+    for (let x = NECK.x1 + 30; x >= x0; x -= 4) { const u = (x - x0) / (xb - x0), e = amp * Math.sin(Math.PI * u) + 0.6; ctx.lineTo(x, stringY(i, x) + e); }
+    ctx.closePath(); ctx.fillStyle = 'rgba(255,248,232,' + (0.18 + 0.08 * lvl) + ')'; ctx.fill();
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,' + (0.10 + 0.05 * lvl) + ')'; ctx.stroke();
+    ctx.save(); ctx.shadowColor = 'rgba(255,240,210,0.9)'; ctx.shadowBlur = 4 + 3 * lvl; drawString(i, x0, '#fffdf6', 1); ctx.restore();
+    ctx.restore();
+  }
+  return cv.toDataURL('image/png');
+}
+function fretStrip(i) {
+  const b = meterBox(i), N = 17; setup(b.w * N, b.h);
+  for (let f = 1; f < N; f++) {
+    ctx.save(); ctx.translate(f * b.w - b.x, -b.y); ctx.beginPath(); ctx.rect(b.x, b.y, b.w, b.h); ctx.clip();
+    const fret = f - 1;   // 0 = open
+    if (fret === 0) badge(58, stringY(i, NECK.x0), NOTE[TUNING[i] % 12], true, '#f3ecdc', '#141414');
+    else {
+      const x = (fretX(fret - 1) + fretX(fret)) / 2 + 4, y = stringY(i, x);
+      ctx.save(); ctx.shadowColor = 'rgba(255,240,210,0.95)'; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.arc(x, y, 11.5, 0, 6.283); ctx.fillStyle = '#141414'; ctx.fill(); ctx.restore();
+      ctx.beginPath(); ctx.arc(x, y, 11.5, 0, 6.283); ctx.strokeStyle = '#f3ecdc'; ctx.lineWidth = 2; ctx.stroke();
+      text(NOTE[(TUNING[i] + fret) % 12], x, y + 1, 12, '#f3ecdc', { align: 'center', base: 'middle', weight: 800, maxw: 19 });
+    }
+    ctx.restore();
+  }
+  return cv.toDataURL('image/png');
+}
+function arrowPlates(t, w, h, ox, oy) {
+  ctx.save();
+  ctx.translate(ox, oy);
+
+  const teal = t === T.teal;
+  const violet = t === T.violet;
+  const themed = teal || violet;
+  const sunburst = t === T.sunburst;
+
+  // Brown surround around a transparent selector track on teal/violet.
+  const outer = themed ? '#65492f'
+    : t === T.grey ? '#383c40' : '#101010';
+
+  const accent = teal ? '#39c8d5'
+    : violet ? '#b497ec'
+    : t === T.sunburst ? '#e4e8ed' : '#e8edf0';
+
+  const outline = t === T.black ? 'rgba(220,228,235,0.78)'
+    : sunburst ? 'rgba(245,248,252,0.82)'
+    : themed ? accent : 'rgba(0,0,0,0.30)';
+
+  rrect(-8, -8, w + 16, h + 16, 14);
+  const surround = ctx.createLinearGradient(0, -8, 0, h + 8);
+  surround.addColorStop(0, outer);
+  surround.addColorStop(1, themed ? '#302116' : outer);
+  ctx.fillStyle = surround;
+  ctx.fill();
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = t === T.black ? 1.8 : sunburst ? 1.7 : themed ? 1.4 : 1;
+  ctx.stroke();
+
+  const plate = (x, d) => {
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.38)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 2;
+
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    if (teal) {
+      g.addColorStop(0, '#28515a');
+      g.addColorStop(1, '#10292e');
+    } else if (violet) {
+      g.addColorStop(0, '#443653');
+      g.addColorStop(1, '#21192d');
+    } else if (sunburst) {
+      g.addColorStop(0, '#484039');
+      g.addColorStop(1, '#211912');
+    } else {
+      g.addColorStop(0, '#353638');
+      g.addColorStop(1, '#151618');
+    }
+
+    rrect(x + 1, 1, h - 2, h - 2, 9);
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.restore();
+
+    rrect(x + 1.5, 1.5, h - 3, h - 3, 9);
+    ctx.strokeStyle = t === T.black ? 'rgba(220,228,235,0.75)'
+      : sunburst ? 'rgba(239,243,247,0.68)'
+      : themed ? 'rgba(210,220,225,0.58)'
+      : 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = t === T.black ? 1.5 : sunburst ? 1.4 : 1;
+    ctx.stroke();
+
+    const cx = x + h / 2, cy = h / 2, sz = h * 0.2;
+    ctx.beginPath();
+    ctx.moveTo(cx - d * sz * 0.8, cy - sz);
+    ctx.lineTo(cx + d * sz, cy);
+    ctx.lineTo(cx - d * sz * 0.8, cy + sz);
+    ctx.closePath();
+    ctx.fillStyle = t === T.grey ? '#151515' : accent;
+    ctx.fill();
+    if (t === T.grey) {
+      ctx.strokeStyle = '#555b61';
+      ctx.lineWidth = 1.1;
+      ctx.stroke();
+    }
+  };
+
+  plate(0, -1);
+  plate(w - h, 1);
+
+  // Teal/violet track stays transparent; retain existing fills for other themes.
+  rrect(h + 4, 1, w - 2 * h - 8, h - 2, 9);
+  if (!themed) {
+    const track = ctx.createLinearGradient(0, 1, 0, h - 1);
+    track.addColorStop(0, sunburst ? '#393027' : '#0d0d0d');
+    track.addColorStop(1, sunburst ? '#211912' : '#0d0d0d');
+    ctx.fillStyle = track;
+    ctx.fill();
+  }
+
+  ctx.strokeStyle = themed ? 'rgba(210,220,225,0.42)'
+    : sunburst ? 'rgba(245,248,252,0.72)'
+    : t === T.black ? 'rgba(220,228,235,0.42)'
+    : 'rgba(255,255,255,0.10)';
+  ctx.lineWidth = themed || sunburst ? 1.2 : 1;
+  ctx.stroke();
+
+  ctx.restore();
+}
+const COLW = COLW_JSON, KP_Y = KP_Y_JSON, KP_H = KP_H_JSON, METER_X0 = METER_X0_JSON;
+window.API = { arrowPlates, background, layerBackground, performBackground, chordLitStrip, wavePicture, instPicture, loadStrip, toggleImage, knobStrip, vibStrip, fretStrip, meterBox };
+</script></body></html>"""
+
+
+def save(data_url, path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wb") as f:
+        f.write(base64.b64decode(data_url.split(",", 1)[1]))
+
+
+def main():
+    import json
+    version = json.load(open(os.path.join(VST, "vst.json"))).get("version", 0)
+    subs = {
+        "FONT_URL": "file://" + os.path.abspath(os.path.join(VST, "fonts", "Yellowtail-Regular.ttf")),
+        "NECK_JSON": json.dumps(NECK), "PANELS_JSON": json.dumps(PANELS), "STRIP_JSON": json.dumps(STRIP),
+        "COLW_JSON": str(COLW), "KP_Y_JSON": str(KP_Y), "KP_H_JSON": str(KP_H), "METER_X0_JSON": str(METER_X0),
+        "STEPPERS_JSON": json.dumps(STEPPERS), "ROW_STEP_DATA": json.dumps(ROW_STEPPERS),
+        "LAYER_GRID": json.dumps(L_GRID), "LAYER_TITLES": json.dumps(L_TITLES), "LAYER_KNOB_DATA": json.dumps(L_KNOBS),
+        "MIX_KNOB_JSON": json.dumps(MIX_KNOB), "SYNTH_COLUMN_DATA": json.dumps(S_STRIP), "WAVE_BOX_JSON": json.dumps(WAVE_BOX),
+        "PIC_STEP_JSON": json.dumps(PIC_STEP), "INST_INFO_JSON": json.dumps(INST_INFO),
+        "INST_NAMES_JSON": json.dumps(INSTRUMENTS),
+        "PERF_PANELS": json.dumps(P_PANELS), "PERF_STEPPERS": json.dumps(P_STEPPERS), "PERF_KNOBS": json.dumps(P_KNOBS),
+        "PERF_TOGGLE": json.dumps(P_TOGGLE), "TILE_JSON": json.dumps(TILE), "NUMERALS_JSON": json.dumps(NUMERALS),
+        "KNOB_LABELS_JSON": json.dumps([list(knob_xy(p_, c, r)) + [lab] for p_, c, r, k, lab in KNOBS]),
+    }
+    page_src = PAGE
+    for k in sorted(subs, key=len, reverse=True):     # longest first: no placeholder is a prefix of another's text
+        assert k in page_src, k
+        page_src = page_src.replace(k, subs[k])
+    tmp = os.path.join(ART, "_page.html")
+    os.makedirs(ART, exist_ok=True)
+    open(tmp, "w").write(page_src)
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        pg = b.new_page()
+        errs = []
+        pg.on("pageerror", lambda e: errs.append(str(e)))
+        pg.goto("file://" + tmp)
+        pg.evaluate("document.fonts.load('74px Script')")
+        pg.wait_for_function("document.fonts.check('74px Script')")
+        for th in THEMES:
+            save(pg.evaluate("API.background(%r)" % th), os.path.join(ART, th, "bg.png"))
+            for which in ("A", "B"):
+                save(pg.evaluate("API.layerBackground(%r, %r)" % (th, which)), os.path.join(ART, th, "layer%s_bg.png" % which.lower()))
+            save(pg.evaluate("API.performBackground(%r)" % th), os.path.join(ART, th, "perform_bg.png"))
+            for key, x, y, w, h, label in TOGGLES + S_TOGGLES + [P_TOGGLE]:
+                for on in (0, 1):
+                    save(pg.evaluate("API.toggleImage(%r, %d, %d, %s, %s)" % (th, w, h, json.dumps(label), "true" if on else "false")),
+                         os.path.join(ART, th, "%s_%s.png" % (key, "on" if on else "off")))
+        save(pg.evaluate("API.knobStrip(128, %d, false)" % (KNOB_R + 5)), os.path.join(ART, "knob.png"))
+        save(pg.evaluate("API.knobStrip(128, %d, true)" % (KNOB_R + 5)), os.path.join(ART, "knob_dim.png"))
+        for k, name in enumerate(["sine", "triangle", "saw", "square"]):
+            save(pg.evaluate("API.wavePicture(%d, %d, %d)" % (k, WAVE_BOX[2], WAVE_BOX[3])), os.path.join(ART, "wave_%s.png" % name))
+        for k in range(len(INSTRUMENTS)):
+            save(pg.evaluate("API.instPicture(%d, %d, %d)" % (k, WAVE_BOX[2], WAVE_BOX[3])), os.path.join(ART, "inst_%d.png" % k))
+        save(pg.evaluate("API.loadStrip(%d, %d)" % (LOAD_BOX[2], LOAD_BOX[3])), os.path.join(ART, "loading.png"))
+        save(pg.evaluate("API.chordLitStrip()"), os.path.join(ART, "chord_lit.png"))
+        boxes = []
+        for i in range(6):
+            save(pg.evaluate("API.vibStrip(%d)" % i), os.path.join(ART, "s%d_vib.png" % (i + 1)))
+            save(pg.evaluate("API.fretStrip(%d)" % i), os.path.join(ART, "s%d_fret.png" % (i + 1)))
+            boxes.append(pg.evaluate("API.meterBox(%d)" % i))
+        b.close()
+        if errs:
+            sys.exit("page errors: %s" % errs)
+    os.remove(tmp)
+    for old in [os.path.join(ART, th, "synth_bg.png") for th in THEMES] + \
+               [os.path.join(ART, th, "%s_%s.png" % (k, o)) for th in THEMES for k in ("strum", "engine") for o in ("on", "off")]:
+        if os.path.exists(old):
+            os.remove(old)
+    write_layout(boxes)
+
+
+def write_layout(boxes):
+    L = []
+    L.append("# Fretty's pages. Generated by tools/make_skin.py (edit that, not this file).")
+    L.append("art_css=skin.css")
+    for k, v in [("bg", "0b0b0b"), ("ink", "efe9d8"), ("ink_dim", "d9d3c5"), ("accent", "f3ecdc"), ("accent_hi", "ffffff"),
+                 ("lcd", "141414"), ("line", "3a3a3a"), ("box", "141414"), ("seg_active", "f3ecdc"), ("seg_inactive", "141414"),
+                 ("seg_active_tx", "141414")]:
+        L.append("theme_%s=%s" % (k, v))
+    play_keys = [k[3] for k in KNOBS if k[2] == 0] + [k[3] for k in KNOBS if k[2] == 1]   # top row, then bottom row
+    L.append("qlinks_track = " + ",".join(play_keys))
+
+    def knob(cx, cy, key, label, bw=136, strip="knob", when=""):
+        L.append('knob cx=%d cy=%d r=%d label="%s" key=%s ns=0 vs=%d bw=%d strip=art/%s.png frames=128%s' % (
+            cx, cy + Y_OFF, KNOB_R, label, key, VALUE_PX, bw, strip, (" when=" + when) if when else ""))
+
+    def dimmable(cx, cy, key, label, bw=136):
+        """One line per instrument where the knob is dimmed, one per instrument where it is live (one condition a line)."""
+        if key not in DIM:
+            knob(cx, cy, key, label, bw)
+            return
+        for i in range(len(INSTRUMENTS)):
+            knob(cx, cy, key, label, bw, "knob_dim" if i in DIM[key] else "knob", "instrument:%d" % i)
+
+    def toggles(lst):
+        for i, th in enumerate(THEMES):
+            for key, x, y, w, h, label in lst:
+                L.append('toggle cx=%d cy=%d w=%d h=%d label="" key=%s ns=0 img=art/%s/%s_off.png img_on=art/%s/%s_on.png when=theme:%d' % (
+                    x + w // 2, y + h // 2 + Y_OFF, w + 16, h + 16, key, th, key, th, key, i))
+
+    def stepper(key, cx, cy, w, h, ts):
+        L.append('stepper cx=%d cy=%d w=%d h=%d label="" key=%s tsize=%d talign=center' % (cx, cy + Y_OFF, w, h, key, ts))
+
+    # ---- PLAY
+    L.append("[tab PLAY]")
+    for i, th in enumerate(THEMES):
+        L.append("art file=art/%s/bg.png x=0 y=%d w=1280 h=628 fit=stretch when=theme:%d" % (th, Y_OFF, i))
+    for i, b in enumerate(boxes):   # string pictures: ring first, the lit fret on top
+        L.append("meter cx=%d cy=%d w=%d h=%d key=s%d_vib strip=art/s%d_vib.png frames=4" % (
+            b["x"] + b["w"] // 2, b["y"] + b["h"] // 2 + Y_OFF, b["w"], b["h"], i + 1, i + 1))
+    for i, b in enumerate(boxes):
+        L.append("meter cx=%d cy=%d w=%d h=%d key=s%d_fret strip=art/s%d_fret.png frames=17" % (
+            b["x"] + b["w"] // 2, b["y"] + b["h"] // 2 + Y_OFF, b["w"], b["h"], i + 1, i + 1))
+    x, y, w, h = LOAD_BOX
+    L.append("meter cx=%d cy=%d w=%d h=%d key=load_state strip=art/loading.png frames=3" % (x + w // 2, y + h // 2 + Y_OFF, w, h))
+    toggles(TOGGLES)
+    for key, cx, cy, w, h, ts in ROW_STEPPERS:
+        stepper(key, cx, cy, w, h, ts)
+    for p, col, row, key, label in KNOBS:
+        x, y = knob_xy(p, col, row)
+        dimmable(x, y, key, label)
+    for key, label, cx, cy, w, h, ts in STEPPERS:
+        stepper(key, cx, cy, w, h, ts)
+    L.append('qlinks "PLAY" = ' + ",".join(play_keys))
+
+    # ---- LAYER A, LAYER B
+    for which in ("A", "B"):
+        L.append("[tab LAYER %s]" % which)
+        for i, th in enumerate(THEMES):
+            L.append("art file=art/%s/layer%s_bg.png x=0 y=%d w=1280 h=628 fit=stretch when=theme:%d" % (th, which.lower(), Y_OFF, i))
+        x, y, w, h = WAVE_BOX
+        if which == "A":
+            files = ",".join("art/inst_%d.png" % k for k in range(len(INSTRUMENTS)))
+            L.append('picture x=%d y=%d w=%d h=%d key=instrument files="%s"' % (x, y + Y_OFF, w, h, files))
+            stepper("instrument", PIC_STEP[0], PIC_STEP[1], PIC_STEP[2], PIC_STEP[3], 21)
+        else:
+            L.append('picture x=%d y=%d w=%d h=%d key=wave files="art/wave_sine.png,art/wave_triangle.png,art/wave_saw.png,art/wave_square.png"' % (
+                x, y + Y_OFF, w, h))
+            stepper("wave", PIC_STEP[0], PIC_STEP[1], PIC_STEP[2], PIC_STEP[3], 21)
+        toggles(S_TOGGLES)
+        for key, label, cx, cy, bw in L_KNOBS[which]:
+            dimmable(cx, cy, key, label, bw)
+        key, label, cx, cy, bw = MIX_KNOB
+        knob(cx, cy, key, label, bw)
+        L.append('qlinks "LAYER %s" = ' % which + ",".join([k[0] for k in L_KNOBS[which]] + ["mix"]))
+    # ---- PERFORM
+    L.append("[tab PERFORM]")
+    for i, th in enumerate(THEMES):
+        L.append("art file=art/%s/perform_bg.png x=0 y=%d w=1280 h=628 fit=stretch when=theme:%d" % (th, Y_OFF, i))
+    gw, gh = 7 * TILE["w"] + 6 * TILE["gap"] + 16, TILE["h"] + 16       # the lit-tile strip, 8 px margin all round
+    L.append("meter cx=%d cy=%d w=%d h=%d key=chord_deg strip=art/chord_lit.png frames=8" % (
+        TILE["x0"] - 8 + gw // 2, TILE["y"] - 8 + gh // 2 + Y_OFF, gw, gh))
+    for i in range(7):
+        x = TILE["x0"] + i * (TILE["w"] + TILE["gap"])
+        L.append('readout cx=%d cy=%d w=%d h=60 label="" key=chord_%d box=0 tsize=24 tweight=bold tcolor=f3ecdc talign=center' % (
+            x + TILE["w"] // 2, TILE["y"] + 128 + Y_OFF, TILE["w"] - 12, i + 1))
+    for key, cap, cx, cy, w, h, ts in P_STEPPERS:
+        stepper(key, cx, cy, w, h, ts)
+    for key, label, cx, cy, bw in P_KNOBS:
+        knob(cx, cy, key, label, bw)
+    toggles([P_TOGGLE])
+    L.append('qlinks "PERFORM" = ' + ",".join([k[0] for k in P_STEPPERS] + [k[0] for k in P_KNOBS] + ["echo_sync"]))
+    open(os.path.join(VST, "layout.conf"), "w").write("\n".join(L) + "\n")
+    css = os.path.join(VST, "skin.css")
+    if not os.path.exists(css):
+        open(css, "w").write("/* Fretty: restyles the renderer's own drawings. */\n")
+
+
+if __name__ == "__main__":
+    main()
