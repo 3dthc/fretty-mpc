@@ -27,5 +27,6 @@
   },
   "layout": "layout.conf",
   "art": "html",
-  "presets": "presets.json"
+  "presets": "presets.json",
+  "skin_post": "skin_post.py"
 }
