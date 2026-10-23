@@ -77,3 +77,9 @@ Because the instrument list grew, open a fresh Fretty rather than a project save
 Also note roughly how long check 2 takes: the first insert decodes the samples (a few seconds on the MPC).
 
 Report back which numbers passed, and anything that sounded wrong (a recording on the MPC helps).
+
+## 0.8.4: rebuilt on the 2026-10-21 wrapper
+The wrapper no longer asks MPC to rebuild its parameter screen on every parameter write (Q-Links on the track's automation
+screen snapped back). Check on the device: **track edit → automation, turn the Q-Links**: each moves its parameter and stays.
+Back on the plugin screen, the instrument and theme arrows, the instrument picture and the chord pads still update.
+`vst/params.lock` (written by gen_vst.py) is committed: the build now fails if a parameter changes index.

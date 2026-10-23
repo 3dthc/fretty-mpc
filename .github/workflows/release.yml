@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Version, e.g. 0.8.2
+        description: Version, e.g. 0.8.4
         required: true
         type: string
       dry_run:
@@ -18,12 +18,12 @@ on:
 
 jobs:
   vst:
-    uses: sd88me/mpc-vst-plugins/.github/workflows/vst-release.yml@e18a0a1da84515096d354f399dd4cd7f9c079fb5
+    uses: sd88me/mpc-vst-plugins/.github/workflows/vst-release.yml@8aa8d3552a55a93eb4034bb9bbb02cbe91d69b61
     permissions: { contents: write }
     with:
       tag: v${{ inputs.version }}
       version: ${{ inputs.version }}
-      tools_ref: e18a0a1da84515096d354f399dd4cd7f9c079fb5
+      tools_ref: 8aa8d3552a55a93eb4034bb9bbb02cbe91d69b61
       vst_dir: vst
       build: bash vst/build.sh
       host_test: '"$MPC_VST/tools/test_port.sh" vst/vst.json'
