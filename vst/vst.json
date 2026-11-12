@@ -29,5 +29,6 @@
   "layout": "layout.conf",
   "art": "html",
   "presets": "presets.json",
-  "skin_post": "skin_post.py"
+  "skin_post": "skin_post.py",
+  "targets": ["armv7", "aarch64"]
 }
