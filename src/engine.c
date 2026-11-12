@@ -340,6 +340,7 @@ typedef struct {
     float rel, rel_k; int releasing;
     float fade, fade_step;
     float lp, lpr, lp_k_scale;
+    float tl, tlr, tilt;   /* a note played more than an octave below its sample: a gentle lift above ~250 Hz */
     int palm, bank;
     uint32_t loop_s, loop_e;           /* a bowed sustain loops [loop_s, loop_e) while it sounds */
     float glide, glide_k;              /* GLIDE: semitones still to slide (decays to 0), per-block factor */
@@ -435,6 +436,10 @@ static void reverb_frame(inst_t *s, float in, float *ol, float *orr) {
 }
 
 /* ---------- zones ---------- */
+/* The lowest key that plays a note (C1): below the open low string the notes come from it tuned down. Keys under it are
+ * noises (C0 up) and the two keyswitches (A#0, B0). Up to 0.8.5 notes started at E1 (28); 24-27 were silent. */
+#define LOW_NOTE 24
+
 static const zone_t *find_zone(const bank_t *b, int type, int key, int vel, int art) {
     const zone_t *best = NULL;
     int bd = 1000;
@@ -493,6 +498,9 @@ static void voice_common(inst_t *s, voice_t *v, int kind, int str, int key, uint
     v->age = ++s->age; v->att_step = 1.0f / (0.0004f * SR);
     v->denv = 1; v->dk = 1; v->hold = 1e9f; v->rel = 1; v->rel_k = 1; v->fade = 1;
     v->lp_k_scale = 1;
+    /* stretched far down, a recording turns dull: lift its upper range a little, more the further it goes (up to +4 dB), */
+    /* only on the new keys below E1, so every note that played before sounds exactly as it did */
+    if (kind == VK_NOTE && key < 28 && semis < -12) v->tilt = fminf(0.6f, (-12 - semis) * 0.05f);
     pan_for(v, str);
 }
 
@@ -625,7 +633,7 @@ static void start_noise(inst_t *s, int key, int vel) {
 /* ---------- chord naming (for the readout) ---------- */
 static void name_chord(inst_t *s) {
     int pcs = 0, low = 128, n = 0;
-    for (int k = 28; k < 128; k++) if (s->key_down[k]) { pcs |= 1 << (k % 12); if (k < low) low = k; n++; }
+    for (int k = LOW_NOTE; k < 128; k++) if (s->key_down[k]) { pcs |= 1 << (k % 12); if (k < low) low = k; n++; }
     if (!n) return;
     if (n == 1 || __builtin_popcount(pcs) == 1) { snprintf(s->chord, sizeof s->chord, "%s", NOTE_NAME[low % 12]); s->rev++; return; }
     static const struct { int mask; const char *name; } T[] = {
@@ -1002,7 +1010,11 @@ static void handle_events(inst_t *s) {
             if (!ready) continue;
             if (d1 == 22) { s->p[P_ARTIC] = 0; s->rev++; continue; }          /* keyswitches: A#0 sustain, B0 palm mute */
             if (d1 == 23) { s->p[P_ARTIC] = 1; s->rev++; continue; }
-            if (d1 < 28) { start_noise(s, d1, d2); continue; }                 /* dead strings and body knocks */
+            /* dead strings and body knocks below C1; C1-D#1 (24-27) play notes, unless this instrument keeps a noise there */
+            if (d1 < LOW_NOTE || (d1 < 28 && find_zone(&g_banks[s->cur_bank], ZT_NOISE, d1, d2, -1))) {
+                start_noise(s, d1, d2);
+                continue;
+            }
             if ((int)lroundf(s->p[P_CHORD_MODE]) > 0) {          /* CHORD PADS: the key plays its degree's chord */
                 int notes[6], deg, c = chord_for(s, d1, notes, &deg);
                 release_pad(s, d1, pd, np);                       /* the same pad again: its old chord lets go first */
@@ -1192,6 +1204,12 @@ static void eng_render(void *inst, int16_t *out, int frames) {
                     v->pos += rate;
                 } else v->pos += rate;
                 if (v->loop_e && v->pos >= v->loop_e) v->pos -= v->loop_e - v->loop_s;
+            }
+            if (v->tilt > 0) {
+                const float tk = 1.0f - expf(-2 * PI_F * 250.0f / SR);
+                v->tl += tk * (xl - v->tl);
+                xl += v->tilt * (xl - v->tl);
+                if (stereo) { v->tlr += tk * (xr - v->tlr); xr += v->tilt * (xr - v->tlr); }
             }
             v->lp += lpk * (xl - v->lp);
             float x = v->lp * v->gain * bgain * env, y = 0;

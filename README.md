@@ -127,8 +127,8 @@ Some sounds have no free recordings that can be shared, so they are built from t
 | C0–F0 (12–17) | dead (muted) string (acoustic and electric) |
 | F♯0–A0 (18–21) | muted strings strummed (acoustic) / finger squeak (electric) |
 | A♯0 / B0 (22 / 23) | keyswitch: Sustain / Palm Mute |
-| C1–D♯1 (24–27) | body knocks (acoustic) |
-| A1 and up | the instrument (D♭2 with DROP D♭ on) |
+| C1–D♯1 (24–27) | body knocks on the acoustic; notes on every other instrument (the low string tuned down, a little brightened) |
+| E1 and up | the instrument (below the open low string, notes come from that string tuned down) |
 
 ## Build
 From Ubuntu (WSL on Windows, or any Linux) with Docker, `git` and `python3`:
