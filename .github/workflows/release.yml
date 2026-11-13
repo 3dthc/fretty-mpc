@@ -18,13 +18,13 @@ on:
 
 jobs:
   vst:
-    uses: 3dthc/mpc-vst-plugins/.github/workflows/vst-release.yml@36ae95952b73f9e432e1f0083a1a56693a22cbb8
+    uses: 3dthc/mpc-vst-plugins/.github/workflows/vst-release.yml@a3236edfca4698b54111438036db4b4b5e39722d
     permissions: { contents: write }
     secrets: inherit   # optional Apple signing/notarization (mpc-vst-plugins docs/DESKTOP_VST3.md)
     with:
       tag: v${{ inputs.version }}
       version: ${{ inputs.version }}
-      tools_ref: 36ae95952b73f9e432e1f0083a1a56693a22cbb8
+      tools_ref: a3236edfca4698b54111438036db4b4b5e39722d
       vst_dir: vst
       build: bash vst/build.sh
       host_test: '"$MPC_VST/tools/test_port.sh" vst/vst.json'
