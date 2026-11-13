@@ -14,6 +14,8 @@ the synth turn that into many more sounds without a sample library.
 Four pages: **PLAY** (the neck, instrument, strum and the main knobs), **LAYER A** (the instrument in detail),
 **LAYER B** (the synth) and **PERFORM** (chord pads and feel). Each page has its own Q-Links.
 
+![BROWSE: categories, presets in two columns, the loaded preset at the top](docs/images/browse.png)
+
 | LAYER A | LAYER B |
 | --- | --- |
 | ![LAYER A](docs/images/layer_a.png) | ![LAYER B](docs/images/layer_b.png) |
