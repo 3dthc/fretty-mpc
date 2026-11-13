@@ -84,6 +84,14 @@ L_KNOBS = {  # key, label, cx, cy, bw
 MIX_KNOB = ("mix", "MIX A / B", 1152, 520, 200)
 S_TOGGLES = [("a_on", 1048, 180, 208, 56, "A \u00b7 GUITAR"), ("b_on", 1048, 252, 208, 56, "B \u00b7 SYNTH")]
 # ---- the PERFORM page
+# BROWSE: categories on the left, that category's presets on the right (two columns of 11), the column as on PLAY
+B_CAT = (8, 8, 288, 612)                         # x, y, w, h (page): the category panel
+B_ROW = (304, 8, 712, 612)                       # the presets panel (ends at 1016, as the other pages' panels do)
+B_COL = (1032, 8, 240, 612)                      # the right column: wordmark, THEME stepper at its foot (STEPPERS)
+B_Y, B_TH, B_GAP, B_N = 52, 42, 8, 11            # the first row's top, row height, gap, rows (11 rows end at 594)
+B_CAT_LIST = (20, 264)                           # x, w (one column)
+B_ROW_LIST = (316, 688)                          # x, w (two columns; the list's gap is the same both ways)
+B_PG = (896, 16, 50, 32)                         # x, y, w, h: page up; page down 58 px right of it
 P_PANELS = [("CHORD PADS", 8, 8, 580, 284), ("FEEL", 596, 8, 420, 284), ("CHORDS IN KEY", 8, 300, 1008, 324)]
 P_STEPPERS = [  # key, caption, cx, cy, w, h, text size
     ("chord_mode", "CHORDS", 158, 100, 260, 52, 21), ("chord_key", "KEY", 438, 100, 260, 52, 21),
@@ -425,6 +433,55 @@ function performBackground(name) {
   wordPlate(sx + 14, sy + 14, sw - 28, sh - 28, 92);
   return cv.toDataURL('image/png');
 }
+// ---------- the BROWSE page background (one per theme) ----------
+// The rows are drawn here (MPC writes the names on them); a list's lit row is a picture cut from this page, so the
+// rows sit on a flat well (the panel's own gradient would show at a lit row's corners).
+const BG = BROWSE_GEO;
+function browseRow(t, x, y, w, h) {
+  rrect(x + 0.5, y + 0.5, w - 1, h - 1, 9);
+  const g = ctx.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, t.btn1); g.addColorStop(1, t.btn2);
+  ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = t.btnEdge; ctx.lineWidth = 1; ctx.stroke();
+}
+function browseRows(t, x, w, cols) {
+  const cw = (w - (cols - 1) * BG.gap) / cols;
+  for (let c = 0; c < cols; c++) for (let r = 0; r < BG.n; r++) browseRow(t, x + c * (cw + BG.gap), BG.y + r * (BG.th + BG.gap), cw, BG.th);
+}
+function browseBackground(name) {
+  const t = T[name], W = 1280, H = 628; setup(W, H);
+  const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, t.bg1); g.addColorStop(1, t.bg2); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  noise(t, W, H);
+  for (const [x, y, w, h] of [BG.cat, BG.row]) {
+    // the other pages' panels as shipped: a soft edge and a faint top light (not panel()'s newer bright outline)
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 6;
+    const pg = ctx.createLinearGradient(0, y, 0, y + h); pg.addColorStop(0, t.panel1); pg.addColorStop(1, t.panel2);
+    rrect(x, y, w, h, 14); ctx.fillStyle = pg; ctx.fill(); ctx.restore();
+    rrect(x + 0.5, y + 0.5, w - 1, h - 1, 14); ctx.strokeStyle = t === T.grey ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1; ctx.stroke();
+    rrect(x + 6, BG.y - 6, w - 12, BG.n * (BG.th + BG.gap) + 4, 10); ctx.fillStyle = t.panel2; ctx.fill();   // the flat well
+  }
+  text('CATEGORY', BG.cat[0] + 20, BG.cat[1] + 30, 15, t.title, { weight: 800, ls: 2.6 });
+  browseRows(t, BG.catl[0], BG.catl[1], 1);
+  browseRows(t, BG.rowl[0], BG.rowl[1], 2);
+  const [px, py, pw, ph] = BG.pg;          // page up / down plates with their arrows (pads on top take the taps)
+  for (let i = 0; i < 2; i++) {
+    const x = px + i * (pw + 8);
+    browseRow(t, x, py, pw, ph);
+    ctx.beginPath();
+    const cx = x + pw / 2, cy = py + ph / 2;
+    if (i === 0) { ctx.moveTo(cx - 8, cy + 5); ctx.lineTo(cx + 8, cy + 5); ctx.lineTo(cx, cy - 6); }
+    else { ctx.moveTo(cx - 8, cy - 5); ctx.lineTo(cx + 8, cy - 5); ctx.lineTo(cx, cy + 6); }
+    ctx.closePath(); ctx.fillStyle = t.btnText; ctx.fill();
+  }
+  // the right column comes from the shipped PERFORM and PLAY pictures (browse_column() in Python), so it is theirs exactly
+  return cv.toDataURL('image/png');
+}
+// a lit row, drawn over the row's own picture: a category's solid in the accent, a preset's outlined
+function browseLit(name, w, h, solid) {
+  const t = T[name]; setup(w, h);
+  rrect(1, 1, w - 2, h - 2, 9);
+  if (solid) { ctx.fillStyle = t.accent; ctx.globalAlpha = 0.9; ctx.fill(); ctx.globalAlpha = 1; }
+  else { ctx.fillStyle = t.accent; ctx.globalAlpha = 0.22; ctx.fill(); ctx.globalAlpha = 1; ctx.strokeStyle = t.accent; ctx.lineWidth = 2.5; ctx.stroke(); }
+  return cv.toDataURL('image/png');
+}
 // the tile lit for the chord playing (frame 0: none, 1-7: that degree)
 function chordLitStrip() {
   const T = TILE_JSON, W = 7 * T.w + 6 * T.gap + 16, H = T.h + 16; setup(W * 8, H);
@@ -739,8 +796,47 @@ function arrowPlates(t, w, h, ox, oy) {
   ctx.restore();
 }
 const COLW = COLW_JSON, KP_Y = KP_Y_JSON, KP_H = KP_H_JSON, METER_X0 = METER_X0_JSON;
-window.API = { arrowPlates, background, layerBackground, performBackground, chordLitStrip, wavePicture, instPicture, loadStrip, toggleImage, knobStrip, vibStrip, fretStrip, meterBox };
+window.API = { arrowPlates, background, layerBackground, performBackground, browseBackground, browseLit, chordLitStrip, wavePicture, instPicture, loadStrip, toggleImage, knobStrip, vibStrip, fretStrip, meterBox };
 </script></body></html>"""
+
+
+def b_col_w(w, cols):
+    return (w - (cols - 1) * B_GAP) // cols
+
+
+def browse_column(th):
+    """BROWSE's right column, cut from the shipped pages: PERFORM's full-height wordmark panel, with PLAY's foot (the end
+    of its wordmark plate, THEME and the stepper) over its lower part. Both draw the plate at the same x, so they meet."""
+    from PIL import Image
+    path = os.path.join(ART, th, "browse_bg.png")
+    bg = Image.open(path).convert("RGB")
+    perf = Image.open(os.path.join(ART, th, "perform_bg.png")).convert("RGB")
+    play = Image.open(os.path.join(ART, th, "bg.png")).convert("RGB")
+    x0, x1 = 1024, 1280
+    bg.paste(perf.crop((x0, 0, x1, 628)), (x0, 0))
+    bg.paste(play.crop((x0, 480, x1, 628)), (x0, 480))
+    bg.save(path)
+
+
+def browse_rows(pg, th):
+    """BROWSE's row pictures for one theme, cut from its page (MPC flattens a list row's picture onto a solid colour, so
+    each must carry its own background): off is the row as drawn, on is the row lit. Rows are 50 px apart on a flat well,
+    so the first row's cut fits every row of its column. And the clear pads that take the taps."""
+    from PIL import Image
+    import io
+    bg = Image.open(os.path.join(ART, th, "browse_bg.png")).convert("RGBA")
+    for kind, (x, w), cols, solid in (("cat", B_CAT_LIST, 1, False), ("row", B_ROW_LIST, 2, False)):   # outlined: the
+                                                                         # row's text keeps its contrast in every theme
+        cw = b_col_w(w, cols)
+        under = bg.crop((x, B_Y, x + cw, B_Y + B_TH))
+        under.convert("RGB").save(os.path.join(ART, th, "b%s_off.png" % kind))
+        lit = Image.open(io.BytesIO(base64.b64decode(pg.evaluate("API.browseLit(%r, %d, %d, %s)" % (
+            th, cw, B_TH, "true" if solid else "false")).split(",", 1)[1]))).convert("RGBA")
+        on = under.copy()
+        on.alpha_composite(lit)
+        on.convert("RGB").save(os.path.join(ART, th, "b%s_on.png" % kind))
+    for w, h in {(B_CAT_LIST[1], B_TH), (b_col_w(B_ROW_LIST[1], 2), B_TH), (B_PG[2], B_PG[3])}:
+        Image.new("RGBA", (w, h), (0, 0, 0, 0)).save(os.path.join(ART, "pad_%dx%d.png" % (w, h)))
 
 
 def save(data_url, path):
@@ -762,7 +858,9 @@ def main():
         "PIC_STEP_JSON": json.dumps(PIC_STEP), "INST_INFO_JSON": json.dumps(INST_INFO),
         "INST_NAMES_JSON": json.dumps(INSTRUMENTS),
         "PERF_PANELS": json.dumps(P_PANELS), "PERF_STEPPERS": json.dumps(P_STEPPERS), "PERF_KNOBS": json.dumps(P_KNOBS),
-        "PERF_TOGGLE": json.dumps(P_TOGGLE), "TILE_JSON": json.dumps(TILE), "NUMERALS_JSON": json.dumps(NUMERALS),
+        "PERF_TOGGLE": json.dumps(P_TOGGLE),
+        "BROWSE_GEO": json.dumps(dict(cat=B_CAT, row=B_ROW, col=B_COL, y=B_Y, th=B_TH, gap=B_GAP, n=B_N, catl=B_CAT_LIST,
+                                      rowl=B_ROW_LIST, pg=B_PG)), "TILE_JSON": json.dumps(TILE), "NUMERALS_JSON": json.dumps(NUMERALS),
         "KNOB_LABELS_JSON": json.dumps([list(knob_xy(p_, c, r)) + [lab] for p_, c, r, k, lab in KNOBS]),
     }
     page_src = PAGE
@@ -780,11 +878,22 @@ def main():
         pg.goto("file://" + tmp)
         pg.evaluate("document.fonts.load('74px Script')")
         pg.wait_for_function("document.fonts.check('74px Script')")
+        if "--browse-only" in sys.argv:   # just BROWSE's pictures, for the themes the layout ships (theme's options)
+            for th in [x for x in THEMES if os.path.isdir(os.path.join(ART, x))]:
+                save(pg.evaluate("API.browseBackground(%r)" % th), os.path.join(ART, th, "browse_bg.png"))
+                browse_column(th)
+                browse_rows(pg, th)
+            b.close()
+            os.remove(tmp)
+            return
         for th in THEMES:
             save(pg.evaluate("API.background(%r)" % th), os.path.join(ART, th, "bg.png"))
             for which in ("A", "B"):
                 save(pg.evaluate("API.layerBackground(%r, %r)" % (th, which)), os.path.join(ART, th, "layer%s_bg.png" % which.lower()))
             save(pg.evaluate("API.performBackground(%r)" % th), os.path.join(ART, th, "perform_bg.png"))
+            save(pg.evaluate("API.browseBackground(%r)" % th), os.path.join(ART, th, "browse_bg.png"))
+            browse_column(th)
+            browse_rows(pg, th)
             for key, x, y, w, h, label in TOGGLES + S_TOGGLES + [P_TOGGLE]:
                 for on in (0, 1):
                     save(pg.evaluate("API.toggleImage(%r, %d, %d, %s, %s)" % (th, w, h, json.dumps(label), "true" if on else "false")),
@@ -811,6 +920,14 @@ def main():
         if os.path.exists(old):
             os.remove(old)
     write_layout(boxes)
+
+
+# live text colours per theme on BROWSE (the rows' btnText, the accent title, the dim caption): T in the page script
+THEME_INK = {"black": dict(text="eeeeee", title="ff7b1c", dim="8e8e8e"),
+             "sunburst": dict(text="f2e7d3", title="d6dade", dim="ad9a7e"),
+             "grey": dict(text="2a2926", title="e2553e", dim="a19d94"),
+             "teal": dict(text="e7f4f5", title="76cbd4", dim="799da2"),
+             "violet": dict(text="f0eaf7", title="b7a0df", dim="9588a8")}
 
 
 def write_layout(boxes):
@@ -866,6 +983,40 @@ def write_layout(boxes):
     for key, label, cx, cy, w, h, ts in STEPPERS:
         stepper(key, cx, cy, w, h, ts)
     L.append('qlinks "PLAY" = ' + ",".join(play_keys))
+
+    # ---- BROWSE
+    L.append("[tab BROWSE]")
+    rows_h = B_N * B_TH + (B_N - 1) * B_GAP
+    for i, th in enumerate(THEMES):
+        L.append("art file=art/%s/browse_bg.png x=0 y=%d w=1280 h=628 fit=stretch when=theme:%d" % (th, Y_OFF, i))
+    for i, th in enumerate(THEMES):
+        t = THEME_INK[th]
+        L.append("list x=%d y=%d w=%d h=%d key=cat cols=1 rows=%d tap=no th=%d gap=%d tsize=30 tcolor=%s tweight=bold "
+                 "talign=left tx=16 img=art/%s/bcat_off.png img_on=art/%s/bcat_on.png when=theme:%d"
+                 % (B_CAT_LIST[0], B_Y + Y_OFF, B_CAT_LIST[1], rows_h, B_N, B_TH, B_GAP, t["text"], th, th, i))
+        L.append("list x=%d y=%d w=%d h=%d key=row cols=2 rows=%d order=cols tap=no th=%d gap=%d tsize=28 tcolor=%s "
+                 "tweight=semibold talign=left tx=16 img=art/%s/brow_off.png img_on=art/%s/brow_on.png when=theme:%d"
+                 % (B_ROW_LIST[0], B_Y + Y_OFF, B_ROW_LIST[1], rows_h, B_N, B_TH, B_GAP, t["text"], th, th, i))
+        L.append('readout cx=%d cy=%d w=440 h=%d label="" key=b_head box=0 tsize=24 tcolor=%s tweight=bold talign=left when=theme:%d'
+                 % (B_ROW[0] + 18 + 220, B_PG[1] + B_PG[3] // 2 + Y_OFF, B_PG[3], t["title"], i))
+        L.append('readout cx=%d cy=%d w=110 h=%d label="" key=b_page box=0 tsize=20 tcolor=%s tweight=bold talign=right when=theme:%d'
+                 % (B_PG[0] - 12 - 55, B_PG[1] + B_PG[3] // 2 + Y_OFF, B_PG[3], t["dim"], i))
+    for r in range(B_N):
+        cy = B_Y + r * (B_TH + B_GAP) + B_TH // 2 + Y_OFF
+        L.append('button cx=%d cy=%d w=%d h=%d label="" key=cpick_%d img=art/pad_%dx%d.png img_on=art/pad_%dx%d.png'
+                 % (B_CAT_LIST[0] + B_CAT_LIST[1] // 2, cy, B_CAT_LIST[1], B_TH, r + 1, B_CAT_LIST[1], B_TH, B_CAT_LIST[1], B_TH))
+    cw = b_col_w(B_ROW_LIST[1], 2)
+    for c in range(2):
+        for r in range(B_N):
+            cy = B_Y + r * (B_TH + B_GAP) + B_TH // 2 + Y_OFF
+            L.append('button cx=%d cy=%d w=%d h=%d label="" key=rpick_%d img=art/pad_%dx%d.png img_on=art/pad_%dx%d.png'
+                     % (B_ROW_LIST[0] + c * (cw + B_GAP) + cw // 2, cy, cw, B_TH, c * B_N + r + 1, cw, B_TH, cw, B_TH))
+    for i, key in enumerate(("pg_prev", "pg_next")):
+        x, y, w, h = B_PG
+        L.append('button cx=%d cy=%d w=%d h=%d label="" key=%s img=art/pad_%dx%d.png img_on=art/pad_%dx%d.png'
+                 % (x + i * (w + 8) + w // 2, y + h // 2 + Y_OFF, w, h, key, w, h, w, h))
+    for key, label, cx, cy, w, h, ts in STEPPERS:
+        stepper(key, cx, cy, w, h, ts)
 
     # ---- LAYER A, LAYER B
     for which in ("A", "B"):

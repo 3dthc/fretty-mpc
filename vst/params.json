@@ -768,6 +768,527 @@
    "max": 7,
    "default": 0,
    "display": "int"
+  },
+  {
+   "key": "b_head",
+   "name": "Browser Heading",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "b_page",
+   "name": "Browser Page",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "pg_prev",
+   "name": "Browser Page Up",
+   "momentary": true
+  },
+  {
+   "key": "pg_next",
+   "name": "Browser Page Down",
+   "momentary": true
+  },
+  {
+   "key": "cat_1",
+   "name": "Category 1",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "cat_2",
+   "name": "Category 2",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "cat_3",
+   "name": "Category 3",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "cat_4",
+   "name": "Category 4",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "cat_5",
+   "name": "Category 5",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "cat_6",
+   "name": "Category 6",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "cat_7",
+   "name": "Category 7",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "cat_8",
+   "name": "Category 8",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "cat_9",
+   "name": "Category 9",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "cat_10",
+   "name": "Category 10",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "cat_11",
+   "name": "Category 11",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_1",
+   "name": "Preset Row 1",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_2",
+   "name": "Preset Row 2",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_3",
+   "name": "Preset Row 3",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_4",
+   "name": "Preset Row 4",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_5",
+   "name": "Preset Row 5",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_6",
+   "name": "Preset Row 6",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_7",
+   "name": "Preset Row 7",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_8",
+   "name": "Preset Row 8",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_9",
+   "name": "Preset Row 9",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_10",
+   "name": "Preset Row 10",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_11",
+   "name": "Preset Row 11",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_12",
+   "name": "Preset Row 12",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_13",
+   "name": "Preset Row 13",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_14",
+   "name": "Preset Row 14",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_15",
+   "name": "Preset Row 15",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_16",
+   "name": "Preset Row 16",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_17",
+   "name": "Preset Row 17",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_18",
+   "name": "Preset Row 18",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_19",
+   "name": "Preset Row 19",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_20",
+   "name": "Preset Row 20",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_21",
+   "name": "Preset Row 21",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "row_22",
+   "name": "Preset Row 22",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "cpick_1",
+   "name": "Category Pad 1",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "cpick_2",
+   "name": "Category Pad 2",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "cpick_3",
+   "name": "Category Pad 3",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "cpick_4",
+   "name": "Category Pad 4",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "cpick_5",
+   "name": "Category Pad 5",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "cpick_6",
+   "name": "Category Pad 6",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "cpick_7",
+   "name": "Category Pad 7",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "cpick_8",
+   "name": "Category Pad 8",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "cpick_9",
+   "name": "Category Pad 9",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "cpick_10",
+   "name": "Category Pad 10",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "cpick_11",
+   "name": "Category Pad 11",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_1",
+   "name": "Preset Pad 1",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_2",
+   "name": "Preset Pad 2",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_3",
+   "name": "Preset Pad 3",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_4",
+   "name": "Preset Pad 4",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_5",
+   "name": "Preset Pad 5",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_6",
+   "name": "Preset Pad 6",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_7",
+   "name": "Preset Pad 7",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_8",
+   "name": "Preset Pad 8",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_9",
+   "name": "Preset Pad 9",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_10",
+   "name": "Preset Pad 10",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_11",
+   "name": "Preset Pad 11",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_12",
+   "name": "Preset Pad 12",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_13",
+   "name": "Preset Pad 13",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_14",
+   "name": "Preset Pad 14",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_15",
+   "name": "Preset Pad 15",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_16",
+   "name": "Preset Pad 16",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_17",
+   "name": "Preset Pad 17",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_18",
+   "name": "Preset Pad 18",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_19",
+   "name": "Preset Pad 19",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_20",
+   "name": "Preset Pad 20",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_21",
+   "name": "Preset Pad 21",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
+  },
+  {
+   "key": "rpick_22",
+   "name": "Preset Pad 22",
+   "min": 0.0,
+   "max": 1.0,
+   "default": 0.5
   }
  ]
 }

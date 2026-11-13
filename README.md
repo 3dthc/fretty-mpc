@@ -91,6 +91,8 @@ darker; ECHO TIME 60 ms to 1 s), SPACE (room reverb), then VOLUME. Each is compl
 at zero, so the default sound is the raw recording.
 
 ## Presets
+**BROWSE page:** tap a category on the left, then a preset in the two columns to load it; ▲ ▼ page through long lists (ALL). The heading shows the loaded preset, with `*` once you've changed it. Picking a preset from MPC's PRESET menu moves the list to it.
+
 110 presets in MPC's PRESET menu, alphabetized by category and name (the tag leads each name):
 - **ACO** acoustic: Clean Archtop, Acoustic Strum, Nylon-Style Soft, Front Porch, Funk Mutes, Ballad Strum, Lead Lines
 - **ELE** electric: Clean Electric, Chorus Clean, Crunch, Distorted Rhythm, Electric Mutes, Surf-ish, Lead Drive,
@@ -188,7 +190,7 @@ python3 -I tools/pack_samples.py engine --shiny <karoryfer.shinyguitar> --emily 
 
 ## The pages
 `tools/make_skin.py` draws all the artwork (backgrounds per theme for the three pages, the chrome wordmark, the knob and
-its dimmed twin, the switches, the waveform and instrument screens, the loading banner and the string pictures) and writes `vst/layout.conf`; its output in `vst/art/` is
+its dimmed twin, the switches, the waveform and instrument screens, the loading banner and the string pictures) and writes `vst/layout.conf` (`--browse-only` redraws just the BROWSE pictures; `tools/make_presets_tab.py` writes `src/presets_tab.h`, the browser's preset table); its output in `vst/art/` is
 committed, so the build only reads it. Each string has two display filmstrips driven by the engine (`s<n>_vib`: ring
 level 0-3, `s<n>_fret`: the lit fret). MPC only swaps those pictures when a value changes (a few times per note).
 

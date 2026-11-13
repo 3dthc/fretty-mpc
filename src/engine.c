@@ -29,6 +29,9 @@
 #include <time.h>
 #include <unistd.h>
 #include "engine.h"
+#include "presets_tab.h"
+#define TAP_S 0.25                    /* BROWSE: a pad tap and MPC's echo of it */
+#define QUIET_S 2.0                   /* BROWSE: after opening, pads ignore the values a project puts back */
 
 #define SR 44100.0f
 #define NSTR 6
@@ -383,6 +386,13 @@ typedef struct {
     uint8_t pad_notes[128][6], pad_n[128], note_ref[128];
     int chord_deg;                   /* the degree (1-7) last played, 0 = none: lights the PERFORM page's tile */
     int bank_held;                   /* the bank this instance holds a "use" on (memory release), -1 none */
+    /* the BROWSE page */
+    int view, page;                  /* the category listed (0 = ALL, -1 = not chosen yet: the loaded preset's), its page */
+    int loaded;                      /* the preset last loaded (BROWSE or MPC's PRESET menu), -1 none */
+    int shown;                       /* the loaded preset the list last moved to */
+    int match, match_dirty;          /* the preset the sound is now exactly (-1: edited, or none), cached */
+    double pad_t[2][32];             /* when each category / preset pad was last tapped (MPC echoes a tap) */
+    double quiet_until;              /* after opening: pads ignore the values a project puts back */
 } inst_t;
 
 static uint32_t rnd(inst_t *s) { s->rng ^= s->rng << 13; s->rng ^= s->rng >> 17; s->rng ^= s->rng << 5; return s->rng; }
@@ -846,6 +856,8 @@ static void *eng_create(const char *data_dir) {
     s->rng = 0x9E3779B9u ^ (uint32_t)(uintptr_t)s;
     s->last_state = -1;
     s->bank_held = -1;
+    s->view = -1; s->loaded = -1; s->shown = -1; s->match = -1; s->match_dirty = 1;
+    s->quiet_until = now_s() + QUIET_S;     /* MPC puts a project's values back right after it opens the plugin */
     s->last_strum = -10.0;                 /* no chord yet: the first ALT strum is a down stroke */
     snprintf(s->chord, sizeof s->chord, "-");
     banks_attach(data_dir);
@@ -880,13 +892,137 @@ static int find_key(const char *key) {
     return -1;
 }
 
+/* ---------- the BROWSE page ----------
+ * Categories on the left (cat_N, tapped by the cpick_N pads over them), that category's presets on the right, ROWS to a
+ * page (row_N, rpick_N); "<key>_on" lights the listed category and the loaded preset. A pick sets the preset's values here,
+ * the way MPC's PRESET menu (the wrapper's list, vst.json "presets") does: the wrapper sees them through display_rev. */
+#define ROWS 22                       /* two columns of 11 */
+static int preset_idx[NPRESET_KEYS], preset_idx_done;
+static void preset_index(void) {
+    if (preset_idx_done) return;
+    for (int k = 0; k < NPRESET_KEYS; k++) preset_idx[k] = find_key(PRESET_KEYS[k]);
+    preset_idx_done = 1;
+}
+static int b_members(const inst_t *s, int *out) {
+    int n = 0;
+    for (int i = 0; i < NPRESET; i++) if (s->view <= 0 || PRESET_CAT[i] == s->view) out[n++] = i;
+    return n;
+}
+static int b_pages(int n) { return n > 0 ? (n + ROWS - 1) / ROWS : 1; }
+static int b_match(inst_t *s) {          /* the preset whose values the sound has, exactly */
+    if (!s->match_dirty) return s->match;
+    preset_index();
+    s->match = -1;
+    int first = s->loaded >= 0 ? s->loaded : 0;   /* the loaded one first: two presets can share every value */
+    for (int t = 0; t < NPRESET && s->match < 0; t++) {
+        int pr = (first + t) % NPRESET, k = 0;
+        for (; k < NPRESET_KEYS; k++) {
+            int i = preset_idx[k];
+            if (i >= 0 && PRESET_VAL[pr][k] == PRESET_VAL[pr][k] && fabsf(s->p[i] - PRESET_VAL[pr][k]) > 0.0015f) break;
+        }
+        if (k == NPRESET_KEYS) s->match = pr;
+    }
+    if (s->match >= 0) s->loaded = s->match;
+    s->match_dirty = 0;
+    return s->match;
+}
+static void b_follow(inst_t *s) {        /* the list shows the loaded preset: its category (once), its page */
+    int cur = s->loaded;
+    if (s->view < 0) s->view = cur >= 0 ? PRESET_CAT[cur] : 0;
+    int m[NPRESET], n = b_members(s, m);
+    s->page = 0;
+    for (int k = 0; k < n; k++) if (m[k] == cur) s->page = k / ROWS;
+}
+static void b_apply(inst_t *s, int pr) {
+    preset_index();
+    for (int k = 0; k < NPRESET_KEYS; k++)
+        if (preset_idx[k] >= 0 && PRESET_VAL[pr][k] == PRESET_VAL[pr][k]) s->p[preset_idx[k]] = PRESET_VAL[pr][k];
+    s->loaded = s->match = pr;
+    s->match_dirty = 0;
+    s->rev++;
+}
+static int b_row_preset(inst_t *s, int r) {
+    int m[NPRESET], n = b_members(s, m), k = s->page * ROWS + r;
+    return r >= 0 && r < ROWS && k < n ? m[k] : -1;
+}
+/* "cpick_3" -> 0 (category pads) / 2, "rpick_7" -> 1 / 6; else -1 */
+static int b_pad(const char *key, int *which) {
+    if ((key[0] == 'c' || key[0] == 'r') && !strncmp(key + 1, "pick_", 5)) {
+        int n = atoi(key + 6) - 1, max = key[0] == 'c' ? NBCAT + 1 : ROWS;
+        if (n >= 0 && n < max) { *which = key[0] == 'r'; return n; }
+    }
+    return -1;
+}
+/* A pad rests at 0.5; a tap on MPC's screen flips its button (0 or 1), and MPC sends the value back once more after it
+ * redraws (within TAP_S). Wall clock: the render clock stands still while the transport does. */
+static int b_set(inst_t *s, const char *key, float x) {
+    int which, n = b_pad(key, &which);
+    if (n >= 0) {
+        if (x > 0.0f && x < 1.0f) return 1;
+        double t = now_s();
+        if (t < s->quiet_until || (s->pad_t[which][n] > 0 && t - s->pad_t[which][n] < TAP_S)) return 1;
+        s->pad_t[which][n] = t;
+        b_match(s);
+        if (which == 0) { s->view = n; b_follow(s); if (s->loaded < 0 || (n && PRESET_CAT[s->loaded] != n)) s->page = 0; }
+        else { int pr = b_row_preset(s, n); if (pr >= 0) b_apply(s, pr); }
+        s->rev++;
+        return 1;
+    }
+    if (!strcmp(key, "pg_prev") || !strcmp(key, "pg_next")) {
+        if (x >= 0.5f) {                     /* the press (the wrapper debounces it); not the release */
+            int m[NPRESET], np = b_pages(b_members(s, m)), d = key[3] == 'n' ? 1 : -1;
+            if (s->view < 0) { b_match(s); b_follow(s); }
+            s->page = ((s->page + d) % np + np) % np;
+            s->rev++;
+        }
+        return 1;
+    }
+    return !strcmp(key, "b_head") || !strcmp(key, "b_page") || (!strncmp(key, "cat_", 4) || !strncmp(key, "row_", 4));
+}
+static void b_upper(char *b) { for (; *b; b++) if (*b >= 'a' && *b <= 'z') *b -= 32; }
+static int b_get(inst_t *s, const char *key, char *buf, int n) {
+    int which;
+    if (b_pad(key, &which) >= 0) return snprintf(buf, n, "0.5");
+    if (strcmp(key, "b_head") && strcmp(key, "b_page") && strncmp(key, "cat_", 4) && strncmp(key, "row_", 4)) return -1;
+    int cur = b_match(s);
+    if (s->view < 0) b_follow(s);
+    if (s->loaded != s->shown) {         /* a preset loaded from elsewhere (MPC's PRESET menu): the list goes to it */
+        if (s->loaded >= 0 && s->view > 0) s->view = PRESET_CAT[s->loaded];
+        b_follow(s);
+        s->shown = s->loaded;
+    }
+    size_t kl = strlen(key);
+    int on = kl > 3 && !strcmp(key + kl - 3, "_on"), len;
+    if (!strcmp(key, "b_head")) {
+        if (s->loaded >= 0) len = snprintf(buf, n, "%s  \xc2\xb7  %s%s", BCAT_NAME[PRESET_CAT[s->loaded]], PRESET_NAME[s->loaded], cur < 0 ? " *" : "");
+        else { int m[NPRESET]; len = snprintf(buf, n, "%s  \xc2\xb7  %d PRESETS", BCAT_NAME[s->view], b_members(s, m)); }
+    } else if (!strcmp(key, "b_page")) {
+        int m[NPRESET]; len = snprintf(buf, n, "PAGE %d/%d", s->page + 1, b_pages(b_members(s, m)));
+    } else if (!strncmp(key, "cat_", 4)) {
+        int c = atoi(key + 4) - 1;
+        if (c < 0 || c > NBCAT) return 0;
+        if (on) return snprintf(buf, n, "%d", c == s->view);
+        len = snprintf(buf, n, "%s", BCAT_NAME[c]);
+    } else {
+        int pr = b_row_preset(s, atoi(key + 4) - 1);
+        if (on) return snprintf(buf, n, "%d", pr >= 0 && pr == cur);
+        if (pr < 0) return snprintf(buf, n, " ");
+        len = s->view > 0 ? snprintf(buf, n, "%s", PRESET_NAME[pr])
+                          : snprintf(buf, n, "%s  %s", BCAT_NAME[PRESET_CAT[pr]], PRESET_NAME[pr]);
+    }
+    if (len > 0) b_upper(buf);
+    return len;
+}
+
 static void eng_set_param(void *inst, const char *key, const char *val) {
     inst_t *s = inst;
     if (!strcmp(key, "lfo_bpm")) { float b = (float)atof(val); if (b > 20 && b < 400) { s->bpm = b; s->rev++; } return; }
-    int i = find_key(key);
-    if (i < 0) return;
     float x = (float)atof(val);
     if (x != x) return;
+    if (b_set(s, key, x)) return;
+    int i = find_key(key);
+    if (i < 0) return;
+    if (s->p[i] != x) s->match_dirty = 1;   /* the sound changed: which preset is it now */
     s->p[i] = x;
 }
 
@@ -946,6 +1082,7 @@ static int eng_get_param(void *inst, const char *key, char *buf, int n) {
     if (!strcmp(key, "status"))
         return snprintf(buf, n, "%s", st == BANK_READY ? "READY" : st == BANK_FAILED ? "SAMPLES MISSING" : "LOADING...");
     if (!strcmp(key, "chord")) return snprintf(buf, n, "%s", s->chord);
+    { int r = b_get(s, key, buf, n); if (r >= 0) return r; }
     if (!strncmp(key, "chord_", 6) && key[6] >= '1' && key[6] <= '7' && !key[7]) {
         if ((int)lroundf(s->p[P_CHORD_MODE]) == 0) return snprintf(buf, n, " ");
         return degree_name(s, key[6] - '1', buf, n);
