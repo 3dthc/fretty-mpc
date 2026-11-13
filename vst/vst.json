@@ -30,5 +30,10 @@
   "art": "html",
   "presets": "presets.json",
   "skin_post": "skin_post.py",
-  "targets": ["armv7", "aarch64"]
+  "targets": [
+    "armv7",
+    "aarch64"
+  ],
+  "au_vendor": "3dthc",
+  "au_manufacturer": "3Dth"
 }
