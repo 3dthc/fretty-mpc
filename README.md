@@ -1,5 +1,7 @@
 # Fretty
 
+[![Support me on Ko-fi](https://img.shields.io/badge/Support%20me%20on-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/3dthc)
+
 A guitar instrument for Akai MPC OS standalone devices (native VST2, built with
 [mpc-vst-plugins](https://github.com/sd88me/mpc-vst-plugins)), with a synth layer as a twist.
 Status: **v0.8.3, tested on an MPC.** Ten real instruments, all CC0, so it can be shared freely.
