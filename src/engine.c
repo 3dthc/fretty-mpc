@@ -389,6 +389,7 @@ typedef struct {
     /* the BROWSE page */
     int view, page;                  /* the category listed (0 = ALL, -1 = not chosen yet: the loaded preset's), its page */
     int loaded;                      /* the preset last loaded (BROWSE or MPC's PRESET menu), -1 none */
+    unsigned picks;                     /* browser loads so far: the wrapper reads "program" (vst.json ENGINE_PROGRAM) */
     int shown;                       /* the loaded preset the list last moved to */
     int match, match_dirty;          /* the preset the sound is now exactly (-1: edited, or none), cached */
     double pad_t[2][32];             /* when each category / preset pad was last tapped (MPC echoes a tap) */
@@ -939,6 +940,7 @@ static void b_apply(inst_t *s, int pr) {
         if (preset_idx[k] >= 0 && PRESET_VAL[pr][k] == PRESET_VAL[pr][k]) s->p[preset_idx[k]] = PRESET_VAL[pr][k];
     s->loaded = s->match = pr;
     s->match_dirty = 0;
+    s->picks++;
     s->rev++;
 }
 static int b_row_preset(inst_t *s, int r) {
@@ -982,6 +984,7 @@ static int b_set(inst_t *s, const char *key, float x) {
 static void b_upper(char *b) { for (; *b; b++) if (*b >= 'a' && *b <= 'z') *b -= 32; }
 static int b_get(inst_t *s, const char *key, char *buf, int n) {
     int which;
+    if (!strcmp(key, "program")) return snprintf(buf, n, "%u:%d", s->picks, s->loaded);   /* see b_apply */
     if (b_pad(key, &which) >= 0) return snprintf(buf, n, "0.5");
     if (strcmp(key, "b_head") && strcmp(key, "b_page") && strncmp(key, "cat_", 4) && strncmp(key, "row_", 4)) return -1;
     int cur = b_match(s);
