@@ -985,6 +985,10 @@ static void b_upper(char *b) { for (; *b; b++) if (*b >= 'a' && *b <= 'z') *b -=
 static int b_get(inst_t *s, const char *key, char *buf, int n) {
     int which;
     if (!strcmp(key, "program")) return snprintf(buf, n, "%u:%d", s->picks, s->loaded);   /* see b_apply */
+    if (!strncmp(key, "preset_category:", 16)) {   /* its BROWSE category, for the Sounds browser's folders (tools/xpl_presets.sh) */
+        int p = atoi(key + 16);
+        return p >= 0 && p < NPRESET && PRESET_CAT[p] > 0 && PRESET_CAT[p] <= NBCAT ? snprintf(buf, n, "%s", BCAT_NAME[PRESET_CAT[p]]) : 0;
+    }
     if (b_pad(key, &which) >= 0) return snprintf(buf, n, "0.5");
     if (strcmp(key, "b_head") && strcmp(key, "b_page") && strncmp(key, "cat_", 4) && strncmp(key, "row_", 4)) return -1;
     int cur = b_match(s);
