@@ -192,7 +192,7 @@ def main():
     for th, name in ((0, "black"), (1, "sunburst"), (2, "grey")):
         st = engine_state(settings_for("ACO | Acoustic Strum", {"theme": th}), AM)
         save(render(tabs["PLAY"], st), "play_%s.png" % name)
-    st = engine_state(settings_for("80S | Chorus Wash", {}), AM)
+    st = engine_state(settings_for("80s | Chorus Wash", {}), AM)
     save(render(tabs["PLAY"], st), "play_electric.png")            # BLEND and NOISE dimmed
     save(render(tabs["LAYER A"], engine_state(settings_for("STL | Weissenborn Slide", {}), AM)), "layer_a.png")
     save(render(tabs["LAYER B"], engine_state(settings_for("SYN | Guitar + Pad", {}), AM)), "layer_b.png")
