@@ -24,7 +24,7 @@ Four pages: **PLAY** (the neck, instrument, strum and the main knobs), **LAYER A
 | **PERFORM** | **PLAY, with the electric** (knobs that do nothing for it are dimmed) |
 | ![PERFORM](docs/images/perform.png) | ![PLAY with the electric](docs/images/play_electric.png) |
 
-Three themes, picked with THEME ◀ ▶: MPC Black, Sunburst and MPC Grey.
+Four themes, picked with THEME ◀ ▶: MPC Black, Sunburst, MPC Grey and Surf Green.
 
 | Sunburst | MPC Grey |
 | --- | --- |
