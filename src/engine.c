@@ -22,12 +22,22 @@
 #define _GNU_SOURCE
 #include <math.h>
 #include <pthread.h>
+#include <sched.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
 #include <time.h>
 #include <unistd.h>
+
+/* Keep a background sample loader off the audio thread's back: SCHED_IDLE so it only runs when nothing real-time
+ * wants the CPU, with a soft nice as a fallback. Decoding a bank is a heavy burst; it must always yield to audio. */
+static void loader_lowprio(void) {
+    struct sched_param sp = {0};
+    pthread_setschedparam(pthread_self(), SCHED_IDLE, &sp);
+    setpriority(PRIO_PROCESS, 0, 19);
+}
 #include "engine.h"
 #include "presets_tab.h"
 #define TAP_S 0.25                    /* BROWSE: a pad tap and MPC's echo of it */
@@ -181,6 +191,7 @@ static void release_idle_banks(int except) {
 
 static void *loader_main(void *arg) {
     bank_t *b = arg;
+    loader_lowprio();
     release_idle_banks((int)(b - g_banks));
     FILE *f = fopen(b->path, "rb");
     long size = 0;
