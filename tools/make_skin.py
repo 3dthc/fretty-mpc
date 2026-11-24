@@ -965,7 +965,9 @@ def write_layout(boxes):
                     x + w // 2, y + h // 2 + Y_OFF, w + 16, h + 16, key, th, key, th, key, i))
 
     def stepper(key, cx, cy, w, h, ts):
-        L.append('stepper cx=%d cy=%d w=%d h=%d label="" key=%s tsize=%d talign=center' % (cx, cy + Y_OFF, w, h, key, ts))
+        # arrow_art=1: each theme bakes its own ◀ ▶ plates into its background (arrowPlates), so the
+        # builder leaves the arrow tap-zones transparent instead of drawing one generic arrow over them.
+        L.append('stepper cx=%d cy=%d w=%d h=%d label="" key=%s tsize=%d talign=center arrow_art=1' % (cx, cy + Y_OFF, w, h, key, ts))
 
     # ---- PLAY
     L.append("[tab PLAY]")
