@@ -27,16 +27,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(__linux__) || defined(__APPLE__)
 #include <sys/resource.h>
+#endif
 #include <time.h>
 #include <unistd.h>
 
 /* Keep a background sample loader off the audio thread's back: SCHED_IDLE so it only runs when nothing real-time
- * wants the CPU, with a soft nice as a fallback. Decoding a bank is a heavy burst; it must always yield to audio. */
+ * wants the CPU, with a soft nice as a fallback. Decoding a bank is a heavy burst; it must always yield to audio.
+ * SCHED_IDLE/setpriority are Linux-only (the MPC target); macOS keeps just the nice, Windows no-ops. */
 static void loader_lowprio(void) {
+#if defined(__linux__)
     struct sched_param sp = {0};
     pthread_setschedparam(pthread_self(), SCHED_IDLE, &sp);
     setpriority(PRIO_PROCESS, 0, 19);
+#elif defined(__APPLE__)
+    setpriority(PRIO_PROCESS, 0, 19);
+#endif
 }
 #include "engine.h"
 #include "presets_tab.h"
