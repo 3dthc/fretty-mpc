@@ -27,7 +27,7 @@ VST = os.path.join(HERE, "..", "vst")
 ART = os.path.join(VST, "art")
 Y_OFF = 86
 
-THEMES = ["black", "sunburst", "grey", "surf"]          # index = the "theme" parameter's option
+THEMES = ["black", "sunburst", "grey", "surf", "violet"]          # index = the "theme" parameter's option
 INSTRUMENTS = ["Acoustic", "Electric", "Folk Harp", "Concert Harp", "Strumstick", "Violin", "Violin Pizz",
                "Dan Tranh", "Psaltery", "Bowed Psaltery"]
 ROW_Y, ROW_H = 236, 52                           # the PLAY page's row under the neck
@@ -140,10 +140,10 @@ const T = {
               title:'#76cbd4', dim:'#799da2', accent:'#2397a8', accentText:'#07191d', wood:['#4a3022','#2b1b14','#60412e'], grain:'dark',
               binding:'#b8cbd0', inlay:'#dce8e9', head:['#19353a','#091a1e'], btn1:'#29464c', btn2:'#142d32', btnEdge:'rgba(190,235,240,0.30)', btnText:'#e7f4f5',
               screw:['#dce7e9','#596a6d'], rule:'#2397a8', chassisText:'#9ab8bc' },
-  violet:   { bg1:'#1b1528', bg2:'#08060d', noise:0.035, panel1:'#292037', panel2:'#171120', edge:'rgba(210,195,235,0.28)', hi:'rgba(245,235,255,0.07)',
-              title:'#b7a0df', dim:'#9588a8', accent:'#8862c3', accentText:'#160e24', wood:['#4a3022','#2b1b14','#60412e'], grain:'dark',
-              binding:'#c8bfce', inlay:'#e9e0f0', head:['#30243f','#140e1d'], btn1:'#413451', btn2:'#241b31', btnEdge:'rgba(220,205,245,0.30)', btnText:'#f0eaf7',
-              screw:['#e8e0ee','#6c6176'], rule:'#8862c3', chassisText:'#b8a9ca' },
+  violet:   { bg1:'#bfa6db', bg2:'#8c66b4', noise:0.06, panel1:'#2d2838', panel2:'#231e2d', edge:'rgba(0,0,0,0.35)', hi:'rgba(255,255,255,0.10)',
+              title:'#8a5cd0', dim:'#574a66', accent:'#8a5cd0', accentText:'#f6f1ff', wood:['#dbb67c','#c09658','#efd3a0'], grain:'light',
+              binding:'#efe6cf', inlay:'#efe8da', head:['#b1884f','#7d5d31'], btn1:'#e8e5dd', btn2:'#c7c3b9', btnEdge:'rgba(0,0,0,0.22)', btnText:'#2a2926',
+              screw:['#f1efea','#8b877e'], rule:'#8a5cd0', chassisText:'#574a66' },
 };
 const TUNING = [40, 45, 50, 55, 59, 64];
 const NOTE = ['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
@@ -184,8 +184,8 @@ function panel(t, x, y, w, h, r = 14) {
   ctx.strokeStyle = black
     ? 'rgba(220,228,235,0.72)'
     : sunburst ? 'rgba(239,243,247,0.72)'
-    : (t === T.grey || t === T.surf) ? 'rgba(0,0,0,0.92)' : t.edge;
-  ctx.lineWidth = black ? 2 : sunburst ? 1.7 : (t === T.grey || t === T.surf) ? 2 : 1;
+    : (t === T.grey || t === T.surf || t === T.violet) ? 'rgba(0,0,0,0.92)' : t.edge;
+  ctx.lineWidth = black ? 2 : sunburst ? 1.7 : (t === T.grey || t === T.surf || t === T.violet) ? 2 : 1;
   ctx.stroke();
 
   ctx.beginPath();
@@ -194,7 +194,7 @@ function panel(t, x, y, w, h, r = 14) {
   ctx.strokeStyle = black
     ? 'rgba(245,248,250,0.32)'
     : sunburst ? 'rgba(250,252,255,0.38)'
-    : (t === T.grey || t === T.surf) ? 'rgba(0,0,0,0.12)' : t.hi;
+    : (t === T.grey || t === T.surf || t === T.violet) ? 'rgba(0,0,0,0.12)' : t.hi;
   ctx.lineWidth = black ? 1.5 : sunburst ? 1.4 : 1;
   ctx.stroke();
 }
@@ -353,7 +353,7 @@ function background(name) {
   return cv.toDataURL('image/png');
 }
 function wordPlate(x, y, w, h, size, t) {
-  const themed = t === T.teal || t === T.violet;
+  const themed = t === T.teal;
   if (themed) {
     rrect(x, y, w, h, 12);
     const dark = ctx.createLinearGradient(0, y, 0, y + h);
@@ -459,7 +459,7 @@ function browseBackground(name) {
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 6;
     const pg = ctx.createLinearGradient(0, y, 0, y + h); pg.addColorStop(0, t.panel1); pg.addColorStop(1, t.panel2);
     rrect(x, y, w, h, 14); ctx.fillStyle = pg; ctx.fill(); ctx.restore();
-    rrect(x + 0.5, y + 0.5, w - 1, h - 1, 14); ctx.strokeStyle = (t === T.grey || t === T.surf) ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1; ctx.stroke();
+    rrect(x + 0.5, y + 0.5, w - 1, h - 1, 14); ctx.strokeStyle = (t === T.grey || t === T.surf || t === T.violet) ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1; ctx.stroke();
     rrect(x + 6, BG.y - 6, w - 12, BG.n * (BG.th + BG.gap) + 4, 10); ctx.fillStyle = t.panel2; ctx.fill();   // the flat well
   }
   text('CATEGORY', BG.cat[0] + 20, BG.cat[1] + 30, 15, t.title, { weight: 800, ls: 2.6 });
@@ -682,12 +682,12 @@ function arrowPlates(t, w, h, ox, oy) {
 
   const teal = t === T.teal;
   const violet = t === T.violet;
-  const themed = teal || violet;
+  const themed = teal;
   const sunburst = t === T.sunburst;
 
   // Brown surround around a transparent selector track on teal/violet.
   const outer = themed ? '#65492f'
-    : (t === T.grey || t === T.surf) ? '#c4c1b9' : '#101010';
+    : (t === T.grey || t === T.surf || t === T.violet) ? '#c4c1b9' : '#101010';
 
   const accent = teal ? '#39c8d5'
     : violet ? '#b497ec'
@@ -695,10 +695,10 @@ function arrowPlates(t, w, h, ox, oy) {
 
   const outline = t === T.black ? 'rgba(220,228,235,0.78)'
     : sunburst ? 'rgba(245,248,252,0.82)'
-    : (t === T.grey || t === T.surf) ? '#4a4945' : themed ? accent : 'rgba(0,0,0,0.30)';
+    : (t === T.grey || t === T.surf || t === T.violet) ? '#4a4945' : themed ? accent : 'rgba(0,0,0,0.30)';
 
   rrect(-8, -8, w + 16, h + 16, 14);
-  if ((t === T.grey || t === T.surf)) {
+  if ((t === T.grey || t === T.surf || t === T.violet)) {
     ctx.fillStyle = outer;
   } else {
     const surround = ctx.createLinearGradient(0, -8, 0, h + 8);
@@ -708,7 +708,7 @@ function arrowPlates(t, w, h, ox, oy) {
   }
   ctx.fill();
   ctx.strokeStyle = outline;
-  ctx.lineWidth = t === T.black ? 1.8 : sunburst ? 1.7 : themed ? 1.4 : (t === T.grey || t === T.surf) ? 2 : 1;
+  ctx.lineWidth = t === T.black ? 1.8 : sunburst ? 1.7 : themed ? 1.4 : (t === T.grey || t === T.surf || t === T.violet) ? 2 : 1;
   ctx.stroke();
 
   const plate = (x, d) => {
@@ -720,7 +720,7 @@ function arrowPlates(t, w, h, ox, oy) {
     }
 
     const g = ctx.createLinearGradient(0, 0, 0, h);
-    if ((t === T.grey || t === T.surf)) {
+    if ((t === T.grey || t === T.surf || t === T.violet)) {
       g.addColorStop(0, '#cbc8c0');
       g.addColorStop(1, '#cbc8c0');
     } else if (teal) {
@@ -743,12 +743,12 @@ function arrowPlates(t, w, h, ox, oy) {
     ctx.restore();
 
     rrect(x + 1.5, 1.5, h - 3, h - 3, 9);
-    ctx.strokeStyle = (t === T.grey || t === T.surf) ? '#4a4945'
+    ctx.strokeStyle = (t === T.grey || t === T.surf || t === T.violet) ? '#4a4945'
       : t === T.black ? 'rgba(220,228,235,0.75)'
       : sunburst ? 'rgba(239,243,247,0.68)'
       : themed ? 'rgba(210,220,225,0.58)'
       : 'rgba(255,255,255,0.18)';
-    ctx.lineWidth = (t === T.grey || t === T.surf) ? 2 : t === T.black ? 1.5 : sunburst ? 1.4 : 1;
+    ctx.lineWidth = (t === T.grey || t === T.surf || t === T.violet) ? 2 : t === T.black ? 1.5 : sunburst ? 1.4 : 1;
     ctx.stroke();
 
     const cx = x + h / 2, cy = h / 2, sz = h * 0.2;
@@ -757,9 +757,9 @@ function arrowPlates(t, w, h, ox, oy) {
     ctx.lineTo(cx + d * sz, cy);
     ctx.lineTo(cx - d * sz * 0.8, cy + sz);
     ctx.closePath();
-    ctx.fillStyle = (t === T.grey || t === T.surf) ? '#eef1f4' : accent;
+    ctx.fillStyle = (t === T.grey || t === T.surf || t === T.violet) ? '#eef1f4' : accent;
     ctx.fill();
-    if ((t === T.grey || t === T.surf)) {
+    if ((t === T.grey || t === T.surf || t === T.violet)) {
       ctx.strokeStyle = '#555b61';
       ctx.lineWidth = 1.1;
       ctx.stroke();
@@ -932,7 +932,7 @@ THEME_INK = {"black": dict(text="eeeeee", title="ff7b1c", dim="8e8e8e"),
              "grey": dict(text="2a2926", title="e2553e", dim="a19d94"),
              "surf": dict(text="2a2926", title="e8603f", dim="46695b"),
              "teal": dict(text="e7f4f5", title="76cbd4", dim="799da2"),
-             "violet": dict(text="f0eaf7", title="b7a0df", dim="9588a8")}
+             "violet": dict(text="2a2926", title="8a5cd0", dim="574a66")}
 
 
 def write_layout(boxes):
