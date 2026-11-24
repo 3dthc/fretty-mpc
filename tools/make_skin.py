@@ -129,8 +129,8 @@ const T = {
               binding:'#eadfc6', inlay:'#f4ecdb', head:['#2a190f','#160d08'], btn1:'#30241b', btn2:'#1b140f', btnEdge:'rgba(214,219,226,0.35)', btnText:'#f2e7d3',
               screw:['#f2f4f6','#6f747a'], rule:'#c9ced4', chassisText:'#ad9a7e' },
   grey:     { bg1:'#d6d3cb', bg2:'#aeaaa0', noise:0.06, panel1:'#2e2d2a', panel2:'#252422', edge:'rgba(0,0,0,0.35)', hi:'rgba(255,255,255,0.10)',
-              title:'#e2553e', dim:'#a19d94', accent:'#d03f2a', accentText:'#fff6f1', wood:['#3b2519','#25160e','#543525'], grain:'dark',
-              binding:'#efe6cf', inlay:'#efe8da', head:['#2c1b12','#170e09'], btn1:'#e6e3dc', btn2:'#c4c0b7', btnEdge:'rgba(0,0,0,0.22)', btnText:'#2a2926',
+              title:'#e2553e', dim:'#a19d94', accent:'#d03f2a', accentText:'#fff6f1', wood:['#2c2d31','#191a1d','#3a3c42'], grain:'dark',
+              binding:'#efe6cf', inlay:'#e9ebee', head:['#232428','#121316'], btn1:'#e6e3dc', btn2:'#c4c0b7', btnEdge:'rgba(0,0,0,0.22)', btnText:'#2a2926',
               screw:['#f1efea','#8b877e'], rule:'#d03f2a', chassisText:'#a19d94' },
   surf:     { bg1:'#a6d0bd', bg2:'#78ab97', noise:0.06, panel1:'#273530', panel2:'#1e2a26', edge:'rgba(0,0,0,0.35)', hi:'rgba(255,255,255,0.10)',
               title:'#e8603f', dim:'#46695b', accent:'#e8603f', accentText:'#fff6f1', wood:['#dbb67c','#c09658','#efd3a0'], grain:'light',
@@ -713,7 +713,7 @@ function arrowPlates(t, w, h, ox, oy) {
 
   const plate = (x, d) => {
     ctx.save();
-    if (t !== T.grey) {
+    if (!(t === T.grey || t === T.surf || t === T.violet)) {
       ctx.shadowColor = 'rgba(0,0,0,0.38)';
       ctx.shadowBlur = 6;
       ctx.shadowOffsetY = 2;
