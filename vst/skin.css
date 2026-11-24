@@ -1,1 +1,9 @@
 /* Fretty: restyles the renderer's own drawings (the theme popup). */
+
+/* Every theme bakes its own stepper arrow plates into its background art
+   (make_skin.py arrowPlates: dark cream-tipped on black/sunburst, light on
+   grey/surf/violet). The renderer also draws its own generic white arrows
+   (--accent-hi) on top, which clash on the dark themes. Hide the drawn ones
+   so each theme's baked, themed arrows show through. Tap zones are unaffected. */
+.arrow { fill: transparent; }
+.arrow-bg { fill: transparent; }
