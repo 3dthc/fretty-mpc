@@ -85,6 +85,8 @@ both at full, fully right is B alone.
   them ringing until both let go.
 - **FEEL:** TIMING (each hit up to 18 ms late at random, and each strummed string a little uneven) and VELOCITY
   (up to +/-22 at random). Off at zero.
+- **A4 TUNE:** the reference pitch for everything Fretty plays, 415 to 466 Hz (440 by default), to match a record or
+  sample that isn't at 440. Saved with the project.
 - **ECHO SYNC:** the ECHO TIME knob steps through note lengths (1/32 to 1/2, with triplets and dotted) at the
   project's tempo. Off: milliseconds.
 - Presets never change the PERFORM settings (like the THEME).

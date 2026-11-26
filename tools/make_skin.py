@@ -96,8 +96,8 @@ P_PANELS = [("CHORD PADS", 8, 8, 580, 284), ("FEEL", 596, 8, 420, 284), ("CHORDS
 P_STEPPERS = [  # key, caption, cx, cy, w, h, text size
     ("chord_mode", "CHORDS", 158, 100, 260, 52, 21), ("chord_key", "KEY", 438, 100, 260, 52, 21),
     ("chord_scale", "SCALE", 158, 210, 260, 52, 21), ("chord_voicing", "VOICING", 438, 210, 260, 52, 21)]
-P_KNOBS = [("hum_time", "TIMING", 666, 150, 124), ("hum_vel", "VELOCITY", 806, 150, 124)]
-P_TOGGLE = ("echo_sync", 891, 124, 110, 52, "SYNC")       # key, x, y, w, h, label (the column at x 946)
+P_KNOBS = [("hum_time", "TIMING", 666, 128, 124), ("hum_vel", "VELOCITY", 806, 128, 124), ("a4", "A4 TUNE", 946, 128, 124)]
+P_TOGGLE = ("echo_sync", 891, 226, 110, 50, "SYNC")       # key, x, y, w, h, label: the FEEL panel's foot, its caption to the left
 TILE = dict(x0=27, y=352, w=130, h=214, gap=10)         # the seven chord tiles
 NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII"]
 
@@ -352,29 +352,36 @@ function background(name) {
   }
   return cv.toDataURL('image/png');
 }
+// the wordmark sits on a perforated metal speaker grille, tinted per theme: [light, mid, dark]
+const MESH = new Map([[T.black, ['#5a5a5a', '#2a2a2a', '#151515']], [T.sunburst, ['#c9a46a', '#8a6a3e', '#3a2412']],
+  [T.grey, ['#8a8d92', '#55575b', '#2f3033']], [T.surf, ['#e4ece9', '#c9d6d2', '#a9b8b4']], [T.violet, ['#6a4c8a', '#3a2550', '#1f1428']],
+  [T.teal, ['#4f7c82', '#244a50', '#0f2428']]]);
 function wordPlate(x, y, w, h, size, t) {
   const themed = t === T.teal;
-  if (themed) {
-    rrect(x, y, w, h, 12);
-    const dark = ctx.createLinearGradient(0, y, 0, y + h);
-    dark.addColorStop(0, '#242321');
-    dark.addColorStop(1, '#111110');
-    ctx.fillStyle = dark;
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  } else {
-    rrect(x, y, w, h, 12);
-    const dark = ctx.createLinearGradient(0, y, 0, y + h);
-    dark.addColorStop(0, '#242321');
-    dark.addColorStop(1, '#111110');
-    ctx.fillStyle = dark;
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
+  const [lt, md, dk] = MESH.get(t) || MESH.get(T.black);
+  ctx.save();
+  rrect(x, y, w, h, 12); ctx.clip();
+  // brushed sheet: light from the top left
+  const g = ctx.createLinearGradient(x, y, x + w * 0.35, y + h);
+  g.addColorStop(0, lt); g.addColorStop(0.45, md); g.addColorStop(1, dk);
+  ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+  for (let k = 0; k < h; k += 2) { ctx.fillStyle = k % 4 ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.03)'; ctx.fillRect(x, y + k, w, 1); }
+  // staggered round holes, each with a lit lower lip
+  const p = 9, r = 2.4;
+  for (let row = 0, yy = y + 6; yy < y + h; row++, yy += p / 2) {
+    for (let xx = x + 6 + (row % 2) * p / 2; xx < x + w; xx += p) {
+      ctx.beginPath(); ctx.arc(xx, yy + 0.6, r, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fill();
+      ctx.beginPath(); ctx.arc(xx, yy, r, 0, Math.PI * 2); ctx.fillStyle = '#050505'; ctx.fill();
+    }
   }
+  // vignette, so the logo reads in the middle
+  const v = ctx.createRadialGradient(x + w / 2, y + h / 2, Math.min(w, h) * 0.2, x + w / 2, y + h / 2, Math.max(w, h) * 0.75);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.55)');
+  ctx.fillStyle = v; ctx.fillRect(x, y, w, h);
+  ctx.restore();
+  // dark trim with a fine bright edge
+  rrect(x, y, w, h, 12); ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 4; ctx.stroke();
+  rrect(x + 2.5, y + 2.5, w - 5, h - 5, 10); ctx.strokeStyle = 'rgba(255,255,255,0.32)'; ctx.lineWidth = 1; ctx.stroke();
   // as big as the plate allows (a margin all round), centred on the letters' own height
   ctx.font = `${size}px Script`;
   let m = ctx.measureText('Fretty');
@@ -400,7 +407,7 @@ function layerBackground(name, which) {
   else { adsrIcon(40, 352, 500, 92, t.title); filterIcon(612, 352, 372, 92, t.title); }
   // right column: wordmark, the layer switches, the mix
   const [sx, sy, sw, sh] = SYNTH_COLUMN_DATA; panel(t, sx, sy, sw, sh);
-  wordPlate(sx + 14, sy + 14, sw - 28, 104, 60);
+  wordPlate(sx + 14, sy + 14, sw - 28, 104, 60, t);
   text('LAYERS', sx + sw / 2, sy + 156, 14, t.chassisText, { weight: 800, ls: 2.8, align: 'center' });
   text('TAP TO SOLO OR LAYER', sx + sw / 2, sy + 332, 11.5, t.chassisText, { weight: 700, ls: 1.4, align: 'center', maxw: sw - 24 });
   for (const [key, label, cx, cy] of LAYER_KNOB_DATA[which].concat([MIX_KNOB_JSON]))
@@ -421,8 +428,7 @@ function performBackground(name) {
   text('EVERY PAD PLAYS THE CHORD OF ITS NOTE IN THIS KEY', 298, 276, 11.5, t.chassisText, { weight: 700, ls: 1.2, align: 'center', maxw: 540 });
   for (const [key, label, cx, cy] of PERF_KNOBS) text(label, cx, cy - 54, 16, '#efe9d8', { align: 'center', weight: 800, ls: 1.4, maxw: 118 });
   { const [key, x, y, w, h] = PERF_TOGGLE;
-    text('ECHO', x + w / 2, y - 26, 16, '#efe9d8', { align: 'center', weight: 800, ls: 1.4 });
-    text('ON THE BEAT', x + w / 2, y + h + 30, 11.5, t.chassisText, { align: 'center', weight: 700, ls: 1.2 }); }
+    text('ECHO ON THE BEAT', x - 20, y + h / 2 + 6, 16, '#efe9d8', { align: 'right', weight: 800, ls: 1.4 }); }
   // the chord tiles: numeral on top, the chord's name is MPC's live text in the middle
   for (let i = 0; i < 7; i++) {
     const [x, y, w, h] = tileRect(i);
@@ -434,7 +440,7 @@ function performBackground(name) {
   text('SET THE PADS TO CHROMATIC, OR TO THIS SCALE: A NOTE BETWEEN TWO DEGREES PLAYS THE LOWER ONE', 512, 604, 11.5, t.chassisText,
        { weight: 700, ls: 1.1, align: 'center', maxw: 960 });
   const [sx, sy, sw, sh] = SYNTH_COLUMN_DATA; panel(t, sx, sy, sw, sh);
-  wordPlate(sx + 14, sy + 14, sw - 28, sh - 28, 92);
+  wordPlate(sx + 14, sy + 14, sw - 28, sh - 28, 92, t);
   return cv.toDataURL('image/png');
 }
 // ---------- the BROWSE page background (one per theme) ----------

@@ -320,7 +320,7 @@ enum {
     P_INSTRUMENT, P_DRIVE, P_CHORUS, P_A_ON, P_B_ON, P_A_LEVEL, P_B_LEVEL,
     P_WAVE, P_OCTAVE, P_SYN_DETUNE, P_CUTOFF, P_RESO, P_ATTACK, P_DECAY, P_SUSTAIN, P_RELEASE,
     P_STRUM_MODE, P_MIX, P_A_ATTACK, P_A_RELEASE, P_A_VEL, P_B_VEL, P_B_FENV, P_GLIDE, P_ECHO, P_ECHO_TIME,
-    P_CHORD_MODE, P_CHORD_KEY, P_CHORD_SCALE, P_CHORD_VOICING, P_HUM_TIME, P_HUM_VEL, P_ECHO_SYNC, NP
+    P_CHORD_MODE, P_CHORD_KEY, P_CHORD_SCALE, P_CHORD_VOICING, P_HUM_TIME, P_HUM_VEL, P_ECHO_SYNC, P_A4, NP
 };
 /* P_STRUM, P_ENGINE, P_A_LEVEL and P_B_LEVEL are kept (parameter order is fixed) but no longer used: STRUM MODE,
  * the PLUCK level (on above zero) and MIX replace them. */
@@ -331,7 +331,7 @@ static const char *PKEY[NP] = {
     "instrument", "drive", "chorus", "a_on", "b_on", "a_level", "b_level",
     "wave", "octave", "syn_detune", "cutoff", "resonance", "attack", "decay", "sustain", "release",
     "strum_mode", "mix", "a_attack", "a_release", "a_vel", "b_vel", "b_fenv", "glide", "echo", "echo_time",
-    "chord_mode", "chord_key", "chord_scale", "chord_voicing", "hum_time", "hum_vel", "echo_sync"
+    "chord_mode", "chord_key", "chord_scale", "chord_voicing", "hum_time", "hum_vel", "echo_sync", "a4"
 };
 static const float PDEF[NP] = {
     0.35f, 1.0f, 0.0f, 0.0f, 0, 0, 0.35f, 0.55f,
@@ -340,7 +340,7 @@ static const float PDEF[NP] = {
     0, 0, 0, 1, 0, 0.80f, 0.50f,
     2, 0, 0.15f, 0.60f, 0.15f, 0.02f, 0.40f, 0.60f, 0.30f,
     1, 0.5f, 0, 0, 1.0f, 0.65f, 0, 0, 0, 0.6f,
-    0, 0, 0, 0, 0, 0, 0
+    0, 0, 0, 0, 0, 0, 0, 440.0f
 };
 static const int OPEN[NSTR] = { 40, 45, 50, 55, 59, 64 };
 static const char *NOTE_NAME[12] = { "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B" };
@@ -413,6 +413,10 @@ typedef struct {
     double pad_t[2][32];             /* when each category / preset pad was last tapped (MPC echoes a tap) */
     double quiet_until;              /* after opening: pads ignore the values a project puts back */
 } inst_t;
+
+/* A4 TUNE: the reference pitch (415-466 Hz, 440 by default), for the plucked strings, the synth and the samples */
+static inline float a4_hz(const inst_t *s) { float a = s->p[P_A4]; return a >= 400.0f && a <= 480.0f ? a : 440.0f; }
+static inline float a4_semis(const inst_t *s) { return 12.0f * log2f(a4_hz(s) / 440.0f); }
 
 static uint32_t rnd(inst_t *s) { s->rng ^= s->rng << 13; s->rng ^= s->rng >> 17; s->rng ^= s->rng << 5; return s->rng; }
 static float frnd(inst_t *s) { return (rnd(s) >> 8) * (1.0f / 16777216.0f); }
@@ -543,7 +547,7 @@ static void start_release_noise(inst_t *s, const voice_t *nv) {
     float level = nv->denv * nv->rel * nv->fade;
     if (level < 0.05f) return;
     voice_t *v = alloc_voice(s);
-    voice_common(s, v, VK_RELEASE, nv->str, nv->key, pick_rr(s, b, z), (float)(nv->key - z->root),
+    voice_common(s, v, VK_RELEASE, nv->str, nv->key, pick_rr(s, b, z), (float)(nv->key - z->root) + a4_semis(s),
                  amt * amt * 0.9f * (level > 0.7f ? 1.0f : level / 0.7f));
     v->bank = nv->bank;
     v->releasing = 1;                 /* a one-shot: never "held" */
@@ -563,7 +567,7 @@ static void release_voice(inst_t *s, voice_t *v) {
 
 static void excite_ks(inst_t *s, voice_t *v, int key, int vel) {
     float det = s->p[P_ENG_DETUNE] * 30.0f;
-    float hz = 440.0f * powf(2.0f, (key - 69) / 12.0f + det / 1200.0f);
+    float hz = a4_hz(s) * powf(2.0f, (key - 69) / 12.0f + det / 1200.0f);
     float len = SR / hz;
     if (len > KS_LEN - 4) len = KS_LEN - 4;
     if (len < 2) len = 2;
@@ -605,13 +609,13 @@ static void start_note(inst_t *s, int key, int vel, int str, int fret, int delay
     if (vel < 40) g *= 0.25f + 0.75f * vel / 40.0f;      /* soft playing gets properly soft, not just the soft layer */
     g = 1.0f - s->p[P_A_VEL] * (1.0f - g);               /* VELOCITY (A): how much the gain follows; layers always do */
     uint32_t smp = pick_rr(s, b, z);
-    voice_common(s, v, VK_NOTE, str, key, smp, (float)(key - z->root), g);
+    voice_common(s, v, VK_NOTE, str, key, smp, (float)(key - z->root) + a4_semis(s), g);
     v->bank = s->cur_bank;
     v->held = 1;
     if (bow && b->loop && b->loop[smp]) { v->loop_s = b->loop[smp]; v->loop_e = b->ent[smp].frames; }
     if (s->p[P_B_ON] > 0.5f) {         /* the synth layer plays the same note */
         v->syn_on = 1; v->syn_stage = 0; v->syn_env = 0;
-        v->syn_hz = 440.0f * powf(2.0f, (key - 69) / 12.0f + lroundf(s->p[P_OCTAVE]));
+        v->syn_hz = a4_hz(s) * powf(2.0f, (key - 69) / 12.0f + lroundf(s->p[P_OCTAVE]));
         v->syn_vel = 1.0f - s->p[P_B_VEL] * (1.0f - vel / 127.0f);
         v->ph1 = frnd(s); v->ph2 = frnd(s);
     }
@@ -1088,6 +1092,7 @@ static int fmt_display(inst_t *s, int i, char *buf, int n) {
         if (s->p[P_ECHO_SYNC] > 0.5f) return snprintf(buf, n, "%s", ECHO_DIV[echo_div(s)]);
         return snprintf(buf, n, "%d ms", (int)lroundf(1000.0f * 0.06f * powf(1.0f / 0.06f, v)));
     case P_HUM_TIME: return v < 0.005f ? snprintf(buf, n, "OFF") : snprintf(buf, n, "%d ms", (int)lroundf(v * 18));
+    case P_A4: return snprintf(buf, n, "%d Hz", (int)lroundf(v));
     case P_HUM_VEL: return v < 0.005f ? snprintf(buf, n, "OFF") : snprintf(buf, n, "+/-%d", (int)lroundf(v * 22));
     case P_B_FENV: return v < 0.005f ? snprintf(buf, n, "OFF") : snprintf(buf, n, "+%.1f OCT", 6.0f * v);
     case P_ENG_MIX: return v <= 0.005f ? snprintf(buf, n, "OFF") : snprintf(buf, n, "%d%%", (int)lroundf(v * 100));

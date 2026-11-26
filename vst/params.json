@@ -1292,6 +1292,15 @@
    "min": 0.0,
    "max": 1.0,
    "default": 0.5
+  },
+  {
+   "key": "a4",
+   "name": "A4 Tune",
+   "unit": "Hz",
+   "min": 415,
+   "max": 466,
+   "default": 440,
+   "display": "int"
   }
  ]
 }
