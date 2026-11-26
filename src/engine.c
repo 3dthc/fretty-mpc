@@ -817,6 +817,7 @@ static void play_batch(inst_t *s, pend_t *pd, int n, int chord_pad) {
             if (fr == 0) sc = fminf(sc, pos > 0 ? 3.0f : 0.6f);
             int ov = s->str_voice[st];
             if (ov >= 0 && s->v[ov].on && s->v[ov].held) sc += 6.0f;      /* don't steal a string still held */
+            if (fr + (int)lroundf(s->p[P_CAPO]) > 15) sc += 4.0f;              /* past the drawn neck: only if nothing else fits */
             sc += st * 0.01f;
             if (sc < bs) { bs = sc; best = st; bfret = fr; }
         }
@@ -1438,7 +1439,10 @@ static void eng_render(void *inst, int16_t *out, int frames) {
             const voice_t *v = &s->v[vi];
             float lvl = v->meter;
             vib = lvl > 0.10f ? 3 : lvl > 0.03f ? 2 : lvl > 0.006f ? 1 : 0;
-            if (vib) { fret = s->str_fret[st] + 1; if (fret < 1) fret = 1; if (fret > 16) fret = 16; }
+            /* the dot sits where the finger is on the drawn neck: the fret counted from the nut (a capo's frets
+             * included), 1 open .. 16 fret 15; a note off the drawn neck (below the string, or past fret 15) shows none */
+            int af = s->str_fret[st] + (int)lroundf(s->p[P_CAPO]);
+            if (vib && s->str_fret[st] >= 0 && af <= 15) fret = af + 1;
         }
         if (vib != s->disp_vib[st] || fret != s->disp_fret[st]) { s->disp_vib[st] = (uint8_t)vib; s->disp_fret[st] = (uint8_t)fret; s->rev++; }
     }

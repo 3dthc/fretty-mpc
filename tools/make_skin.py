@@ -354,7 +354,7 @@ function background(name) {
 }
 // the wordmark sits on a perforated metal speaker grille, tinted per theme: [light, mid, dark]
 const MESH = new Map([[T.black, ['#5a5a5a', '#2a2a2a', '#151515']], [T.sunburst, ['#c9a46a', '#8a6a3e', '#3a2412']],
-  [T.grey, ['#8a8d92', '#55575b', '#2f3033']], [T.surf, ['#e4ece9', '#c9d6d2', '#a9b8b4']], [T.violet, ['#6a4c8a', '#3a2550', '#1f1428']],
+  [T.grey, ['#8a8d92', '#55575b', '#2f3033']], [T.surf, ['#5f9a83', '#2f6a56', '#173b30']], [T.violet, ['#6a4c8a', '#3a2550', '#1f1428']],
   [T.teal, ['#4f7c82', '#244a50', '#0f2428']]]);
 function wordPlate(x, y, w, h, size, t) {
   const themed = t === T.teal;
@@ -665,18 +665,18 @@ function vibStrip(i) {
   }
   return cv.toDataURL('image/png');
 }
-function fretStrip(i) {
+function fretStrip(i, off = 0) {   // off: the string's tuning from standard (DROP D♭: -3 on the low E)
   const b = meterBox(i), N = 17; setup(b.w * N, b.h);
   for (let f = 1; f < N; f++) {
     ctx.save(); ctx.translate(f * b.w - b.x, -b.y); ctx.beginPath(); ctx.rect(b.x, b.y, b.w, b.h); ctx.clip();
     const fret = f - 1;   // 0 = open
-    if (fret === 0) badge(58, stringY(i, NECK.x0), NOTE[TUNING[i] % 12], true, '#f3ecdc', '#141414');
+    if (fret === 0) badge(58, stringY(i, NECK.x0), NOTE[(TUNING[i] + off + 12) % 12], true, '#f3ecdc', '#141414');
     else {
       const x = (fretX(fret - 1) + fretX(fret)) / 2 + 4, y = stringY(i, x);
       ctx.save(); ctx.shadowColor = 'rgba(255,240,210,0.95)'; ctx.shadowBlur = 12;
       ctx.beginPath(); ctx.arc(x, y, 11.5, 0, 6.283); ctx.fillStyle = '#141414'; ctx.fill(); ctx.restore();
       ctx.beginPath(); ctx.arc(x, y, 11.5, 0, 6.283); ctx.strokeStyle = '#f3ecdc'; ctx.lineWidth = 2; ctx.stroke();
-      text(NOTE[(TUNING[i] + fret) % 12], x, y + 1, 12, '#f3ecdc', { align: 'center', base: 'middle', weight: 800, maxw: 19 });
+      text(NOTE[(TUNING[i] + off + fret + 12) % 12], x, y + 1, 12, '#f3ecdc', { align: 'center', base: 'middle', weight: 800, maxw: 19 });
     }
     ctx.restore();
   }
@@ -920,6 +920,8 @@ def main():
         for i in range(6):
             save(pg.evaluate("API.vibStrip(%d)" % i), os.path.join(ART, "s%d_vib.png" % (i + 1)))
             save(pg.evaluate("API.fretStrip(%d)" % i), os.path.join(ART, "s%d_fret.png" % (i + 1)))
+            if i == 0:   # the low string with DROP D♭ on: the same dots, its own note names
+                save(pg.evaluate("API.fretStrip(0, -3)"), os.path.join(ART, "s1_fret_drop.png"))
             boxes.append(pg.evaluate("API.meterBox(%d)" % i))
         b.close()
         if errs:
@@ -983,8 +985,12 @@ def write_layout(boxes):
         L.append("meter cx=%d cy=%d w=%d h=%d key=s%d_vib strip=art/s%d_vib.png frames=4" % (
             b["x"] + b["w"] // 2, b["y"] + b["h"] // 2 + Y_OFF, b["w"], b["h"], i + 1, i + 1))
     for i, b in enumerate(boxes):
-        L.append("meter cx=%d cy=%d w=%d h=%d key=s%d_fret strip=art/s%d_fret.png frames=17" % (
-            b["x"] + b["w"] // 2, b["y"] + b["h"] // 2 + Y_OFF, b["w"], b["h"], i + 1, i + 1))
+        geo = (b["x"] + b["w"] // 2, b["y"] + b["h"] // 2 + Y_OFF, b["w"], b["h"])
+        if i == 0:   # the low string names its notes for its tuning: standard, or DROP D♭
+            L.append("meter cx=%d cy=%d w=%d h=%d key=s1_fret strip=art/s1_fret.png frames=17 when=drop:0" % geo)
+            L.append("meter cx=%d cy=%d w=%d h=%d key=s1_fret strip=art/s1_fret_drop.png frames=17 when=drop:1" % geo)
+        else:
+            L.append("meter cx=%d cy=%d w=%d h=%d key=s%d_fret strip=art/s%d_fret.png frames=17" % (geo + (i + 1, i + 1)))
     x, y, w, h = LOAD_BOX
     L.append("meter cx=%d cy=%d w=%d h=%d key=load_state strip=art/loading.png frames=3" % (x + w // 2, y + h // 2 + Y_OFF, w, h))
     toggles(TOGGLES)
